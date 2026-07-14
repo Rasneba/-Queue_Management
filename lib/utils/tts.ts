@@ -19,31 +19,6 @@ async function isTTSServerAvailable(): Promise<boolean> {
   }
 }
 
-async function speakViaServer(text: string, lang: Lang): Promise<boolean> {
-  try {
-    const res = await fetch(`${TTS_SERVER_URL}/speak`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, lang, rate: "-10%", pitch: "+0Hz" }),
-    });
-    if (!res.ok) return false;
-
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.src = "";
-    }
-
-    currentAudio = new Audio(url);
-    currentAudio.play();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function speakQueueViaServer(
   ticket: string,
   counter: string,
@@ -61,36 +36,38 @@ async function speakQueueViaServer(
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
 
-    if (currentAudio) {
-      currentAudio.pause();
-      currentAudio.src = "";
-    }
-
-    currentAudio = new Audio(url);
-    currentAudio.play();
-    return true;
+    return new Promise((resolve) => {
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); resolve(true); };
+      audio.onerror = () => { URL.revokeObjectURL(url); resolve(false); };
+      if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
+      currentAudio = audio;
+      audio.play().catch(() => resolve(false));
+    });
   } catch {
     return false;
   }
 }
 
-function speakViaBrowser(text: string, lang: Lang, rate: number = 0.85): void {
-  const synth = window.speechSynthesis;
-  if (!synth) return;
+function speakViaBrowser(text: string, lang: Lang, rate: number = 0.85): Promise<void> {
+  return new Promise((resolve) => {
+    const synth = window.speechSynthesis;
+    if (!synth) { resolve(); return; }
 
-  synth.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = LANG_MAP[lang];
+    utterance.rate = rate;
+    utterance.pitch = 1.0;
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = LANG_MAP[lang];
-  utterance.rate = rate;
-  utterance.pitch = 1.0;
+    const voices = synth.getVoices();
+    const targetLang = LANG_MAP[lang];
+    const voice = voices.find((v) => v.lang === targetLang) || voices.find((v) => v.lang.startsWith(lang));
+    if (voice) utterance.voice = voice;
 
-  const voices = synth.getVoices();
-  const targetLang = LANG_MAP[lang];
-  const voice = voices.find((v) => v.lang === targetLang) || voices.find((v) => v.lang.startsWith(lang));
-  if (voice) utterance.voice = voice;
-
-  synth.speak(utterance);
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    synth.speak(utterance);
+  });
 }
 
 export function preloadVoices(): Promise<SpeechSynthesisVoice[]> {
@@ -114,23 +91,41 @@ export function preloadVoices(): Promise<SpeechSynthesisVoice[]> {
 }
 
 export async function speakTicket(ticketId: string, roomNumber: string, options: TTSOptions = {}): Promise<void> {
-  const { lang = "am", department } = options;
-
+  const { department } = options;
   const serverUp = await isTTSServerAvailable();
+
   if (serverUp) {
-    await speakQueueViaServer(ticketId, roomNumber, lang, department);
+    await speakQueueViaServer(ticketId, roomNumber, "am", department);
+    await new Promise(r => setTimeout(r, 400));
+    await speakQueueViaServer(ticketId, roomNumber, "en", department);
   } else {
-    const fallbackText = `Patient number ${ticketId}, please proceed to counter number ${roomNumber}`;
-    speakViaBrowser(fallbackText, lang);
+    await speakViaBrowser(`ተጠራ ቁጥር ${ticketId}፣ ወደ መቀበያ ቁጥር ${roomNumber} ይምጡ`, "am");
+    await new Promise(r => setTimeout(r, 300));
+    await speakViaBrowser(`Patient number ${ticketId}, please proceed to counter number ${roomNumber}`, "en");
   }
 }
 
 export async function speakText(text: string, lang: Lang = "am"): Promise<void> {
   const serverUp = await isTTSServerAvailable();
   if (serverUp) {
-    await speakViaServer(text, lang);
+    const res = await fetch(`${TTS_SERVER_URL}/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, lang, rate: "-10%", pitch: "+0Hz" }),
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    return new Promise((resolve) => {
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+      if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
+      currentAudio = audio;
+      audio.play().catch(() => resolve());
+    });
   } else {
-    speakViaBrowser(text, lang);
+    await speakViaBrowser(text, lang);
   }
 }
 

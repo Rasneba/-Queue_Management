@@ -70,6 +70,12 @@ export async function initDB() {
   if (result[0].cnt === 0) {
     await sql`INSERT INTO patient_counter (id, next_number) VALUES (1, 8)`;
   }
+
+  await sql`CREATE INDEX IF NOT EXISTS idx_patients_status ON patients(status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_patients_checkin ON patients(check_in_time)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_patients_dept ON patients(recommended_department)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_doctor_sessions_active ON doctor_sessions(is_active)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_staff_role ON staff(role)`;
 }
 
 export async function getNextPatientNumber(): Promise<number> {

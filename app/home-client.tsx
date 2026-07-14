@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import dynamic from 'next/dynamic';
 import {
   Heart, Tv, Stethoscope, BarChart2, BarChart3, CheckCircle2,
-  AlertCircle, RefreshCw, PlusCircle, UserCheck, Ticket, Globe
+  AlertCircle, RefreshCw, PlusCircle, UserCheck, Ticket, Globe, Moon, Sun
 } from 'lucide-react';
 import { Patient } from '@/lib/types';
 import { Language, t } from '@/lib/utils/translations';
@@ -28,6 +28,7 @@ export default function HomeClient() {
   const [error, setError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [queriedPatientId, setQueriedPatientId] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('app_dark_mode') === 'true');
 
   const [timeStr, setTimeStr] = useState('00:00');
   const [dateStr, setDateStr] = useState('Monday, Oct 24');
@@ -35,6 +36,11 @@ export default function HomeClient() {
   useEffect(() => {
     preloadVoices();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode);
+    localStorage.setItem('app_dark_mode', String(darkMode));
+  }, [darkMode]);
 
   useEffect(() => {
     const saved = localStorage.getItem('app_language');
@@ -247,6 +253,16 @@ export default function HomeClient() {
                 <option value="om">Afaan Oromoo</option>
               </select>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setDarkMode(!darkMode)}
+              className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl border border-slate-200/40 bg-slate-100 hover:bg-slate-200 transition-all text-xs font-bold text-slate-600 cursor-pointer"
+              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-slate-500" />}
+              <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
+            </button>
 
             <div className="hidden md:flex items-center gap-5 text-right">
               <div className="h-10 w-[1px] bg-slate-200"></div>

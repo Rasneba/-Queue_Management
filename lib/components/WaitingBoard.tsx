@@ -38,7 +38,7 @@ function parseTicketNumber(id: string): number {
 }
 
 export default function WaitingBoard({ patients, language = 'en', isOffline = false, onCallNext }: WaitingBoardProps) {
-  const [audioEnabled, setAudioEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
   const lastCalledIdRef = useRef<string | null>(null);
   const autoSpokenRef = useRef<string | null>(null);
 
@@ -82,14 +82,14 @@ export default function WaitingBoard({ patients, language = 'en', isOffline = fa
     playPleasantChime();
 
     setTimeout(() => {
-      speakTicket(next.id, 'reception', { lang: language as 'am' | 'en' | 'om' });
+      speakTicket(next.id, 'reception');
     }, 1200);
-  }, [nextPatients, audioEnabled, language]);
+  }, [nextPatients, audioEnabled]);
 
   const triggerVoiceCall = async (patient: Patient) => {
     playPleasantChime();
     setTimeout(() => {
-      speakTicket(patient.id, patient.assignedRoom || 'reception', { lang: language as 'am' | 'en' | 'om' });
+      speakTicket(patient.id, patient.assignedRoom || 'reception');
     }, 1200);
   };
 

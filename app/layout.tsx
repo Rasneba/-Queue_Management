@@ -19,8 +19,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
-      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased">
+    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{
+          __html: `try{if(localStorage.getItem('app_dark_mode')==='true')document.documentElement.classList.add('dark')}catch(e){}`
+        }} />
+      </head>
+      <body className="min-h-screen bg-slate-50 text-slate-900 antialiased dark:bg-slate-900 dark:text-slate-100">
         {children}
       </body>
     </html>

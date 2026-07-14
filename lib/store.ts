@@ -1,10 +1,10 @@
 import { Priority, Department } from "./types";
 import sql from "./db";
-import { Pool } from "@neondatabase/serverless";
 
-let _pool: Pool | null = null;
-function getPool(): Pool {
+let _pool: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> } | null = null;
+async function getPool() {
   if (!_pool) {
+    const { Pool } = await import("@neondatabase/serverless");
     _pool = new Pool({ connectionString: process.env.DATABASE_URL });
   }
   return _pool;
@@ -91,6 +91,8 @@ export async function updatePatient(id: string, updates: Record<string, unknown>
   const entries = Object.entries(updates).filter(([key, val]) => val !== undefined && fieldMap[key]);
   if (entries.length === 0) return;
 
+  const pool = await getPool();
+
   let setClause = "";
   const values: unknown[] = [];
   let idx = 1;
@@ -103,7 +105,7 @@ export async function updatePatient(id: string, updates: Record<string, unknown>
   }
 
   values.push(id);
-  await getPool().query(`UPDATE patients SET ${setClause} WHERE id = $${idx}`, values);
+  await pool.query(`UPDATE patients SET ${setClause} WHERE id = $${idx}`, values);
 }
 
 export async function getNextPatientNumber(): Promise<number> {
@@ -114,53 +116,48 @@ export async function getNextPatientNumber(): Promise<number> {
 }
 
 export async function recalculateWaitTimes() {
-  const waiting = await sql`SELECT id, recommended_department, triage_priority, triage_score, priority_level FROM patients WHERE status = 'Waiting' ORDER BY check_in_time ASC`;
-
-  const priorityLevelMap: Record<string, number> = { 'VIP': 3, 'Urgent': 2, 'Standard': 1 };
-  const priorityMap: Record<string, number> = { 'Emergency': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
-
-  const sorted = waiting.sort((a, b) => {
-    const la = priorityLevelMap[(a.priority_level as string) || 'Standard'] || 1;
-    const lb = priorityLevelMap[(b.priority_level as string) || 'Standard'] || 1;
-    if (la !== lb) return lb - la;
-    const pa = priorityMap[a.triage_priority as string] || 1;
-    const pb = priorityMap[b.triage_priority as string] || 1;
-    if (pa !== pb) return pb - pa;
-    if (b.triage_score !== a.triage_score) return (b.triage_score as number) - (a.triage_score as number);
-    return 0;
-  });
-
-  const deptCounters: Record<string, number> = {};
-  for (const p of sorted) {
-    const dept = p.recommended_department as string;
-    deptCounters[dept] = (deptCounters[dept] || 0) + 1;
-    let wait = deptCounters[dept] * 12;
-    if (p.triage_priority === 'Emergency') wait = 2;
-    else if (p.triage_priority === 'High') wait = Math.max(5, wait - 10);
-    await sql`UPDATE patients SET estimated_wait_minutes = ${wait} WHERE id = ${p.id}`;
-  }
+  await sql`
+    WITH ranked AS (
+      SELECT id,
+        triage_priority,
+        triage_score,
+        recommended_department,
+        priority_level,
+        ROW_NUMBER() OVER (
+          PARTITION BY recommended_department
+          ORDER BY
+            CASE COALESCE(priority_level, 'Standard') WHEN 'VIP' THEN 3 WHEN 'Urgent' THEN 2 ELSE 1 END DESC,
+            CASE triage_priority WHEN 'Emergency' THEN 4 WHEN 'High' THEN 3 WHEN 'Medium' THEN 2 ELSE 1 END DESC,
+            triage_score DESC,
+            check_in_time ASC
+        ) AS dept_row
+      FROM patients
+      WHERE status = 'Waiting'
+    )
+    UPDATE patients SET estimated_wait_minutes = CASE
+      WHEN ranked.triage_priority = 'Emergency' THEN 2
+      WHEN ranked.triage_priority = 'High' THEN GREATEST(5, ranked.dept_row * 12 - 10)
+      ELSE ranked.dept_row * 12
+    END
+    FROM ranked WHERE patients.id = ranked.id
+  `;
 }
 
 export async function resetStore() {
   await sql`DELETE FROM patients`;
   await sql`UPDATE patient_counter SET next_number = 8 WHERE id = 1`;
 
-  const seedPatients = [
-    { id: "P-1", name: "Ato Tesfaye Bekele", age: 58, gender: "Male", symptoms: "Crushing chest pain radiating to left arm, shortness of breath, and profuse sweating since morning", priority: "Emergency", score: 5, dept: "Cardiology", room: "Trauma Room 2", status: "Serving", wait: 0 },
-    { id: "P-2", name: "Sara Ahmed", age: 5, gender: "Female", symptoms: "High fever 39.5C for 2 days, coughing, refusing to eat, weak and lethargic", priority: "High", score: 4, dept: "Pediatrics", room: "Room 4", status: "Called", wait: 0 },
-    { id: "P-3", name: "W/ro Hirut Mengistu", age: 45, gender: "Female", symptoms: "Sudden severe headache, worst of my life, with nausea and vomiting, stiff neck, sensitivity to light", priority: "Emergency", score: 5, dept: "Neurology", room: "Trauma Room 1", status: "Serving", wait: 0 },
-    { id: "P-4", name: "Ato Daniel Girma", age: 32, gender: "Male", symptoms: "Road traffic accident, fractured right femur, severe pain, leg shortened and externally rotated", priority: "High", score: 4, dept: "Orthopedics", room: "Room 3", status: "Waiting", wait: 15 },
-    { id: "P-5", name: "W/ro Fatima Yusuf", age: 28, gender: "Female", symptoms: "8 months pregnant, severe headaches, blurred vision, swelling of face and hands, blood pressure 170/110", priority: "High", score: 4, dept: "Gynecology", room: "Room 5", status: "Waiting", wait: 12 },
-    { id: "P-6", name: "Mulu Girma", age: 41, gender: "Female", symptoms: "Persistent cough for 3 weeks, night sweats, weight loss, occasional blood in sputum", priority: "Medium", score: 3, dept: "General Medicine", room: null, status: "Waiting", wait: 35 },
-    { id: "P-7", name: "Ato Solomon Dinku", age: 72, gender: "Male", symptoms: "Prescription renewal for diabetes and hypertension, feeling fine, just routine check", priority: "Low", score: 1, dept: "General Medicine", room: "Room 1", status: "Completed", wait: 0 },
-  ];
-
-  for (const p of seedPatients) {
-    await sql`
-      INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, assigned_room, status, estimated_wait_minutes)
-      VALUES (${p.id}, ${p.name}, ${p.age}, ${p.gender}, ${p.symptoms}, ${p.priority}, ${p.score}, ${p.dept}, ${p.room}, ${p.status}, ${p.wait})
-    `;
-  }
+  await sql`
+    INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, assigned_room, status, estimated_wait_minutes)
+    VALUES
+      ('P-1', 'Ato Tesfaye Bekele', 58, 'Male', 'Crushing chest pain radiating to left arm, shortness of breath, and profuse sweating since morning', 'Emergency', 5, 'Cardiology', 'Trauma Room 2', 'Serving', 0),
+      ('P-2', 'Sara Ahmed', 5, 'Female', 'High fever 39.5C for 2 days, coughing, refusing to eat, weak and lethargic', 'High', 4, 'Pediatrics', 'Room 4', 'Called', 0),
+      ('P-3', 'W/ro Hirut Mengistu', 45, 'Female', 'Sudden severe headache, worst of my life, with nausea and vomiting, stiff neck, sensitivity to light', 'Emergency', 5, 'Neurology', 'Trauma Room 1', 'Serving', 0),
+      ('P-4', 'Ato Daniel Girma', 32, 'Male', 'Road traffic accident, fractured right femur, severe pain, leg shortened and externally rotated', 'High', 4, 'Orthopedics', 'Room 3', 'Waiting', 15),
+      ('P-5', 'W/ro Fatima Yusuf', 28, 'Female', '8 months pregnant, severe headaches, blurred vision, swelling of face and hands, blood pressure 170/110', 'High', 4, 'Gynecology', 'Room 5', 'Waiting', 12),
+      ('P-6', 'Mulu Girma', 41, 'Female', 'Persistent cough for 3 weeks, night sweats, weight loss, occasional blood in sputum', 'Medium', 3, 'General Medicine', NULL, 'Waiting', 35),
+      ('P-7', 'Ato Solomon Dinku', 72, 'Male', 'Prescription renewal for diabetes and hypertension, feeling fine, just routine check', 'Low', 1, 'General Medicine', 'Room 1', 'Completed', 0)
+  `;
 }
 
 export function fallbackTriage(name: string, age: number, gender: string, symptoms: string) {

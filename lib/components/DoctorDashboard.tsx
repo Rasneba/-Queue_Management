@@ -174,11 +174,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     return saved !== null ? saved === 'true' : true;
   });
 
-  const [ttsLang, setTtsLang] = useState<'en' | 'am' | 'om'>(() => {
-    const saved = localStorage.getItem('doctor_tts_lang');
-    return (saved === 'am' || saved === 'om' || saved === 'en') ? saved : 'am';
-  });
-
   const toggleAudio = () => {
     setAudioEnabled(prev => {
       const next = !prev;
@@ -213,7 +208,7 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
         const dept = patient?.recommendedDepartment;
         const roomNum = selectedRoom.replace(/[^0-9]/g, '') || '1';
         const delay = audioEnabled ? 1200 : 300;
-        setTimeout(() => speakTicket(id, roomNum, { lang: ttsLang, department: dept }), delay);
+        setTimeout(() => speakTicket(id, roomNum, { department: dept }), delay);
       }
       onUpdatePatients();
     } catch (err) {
@@ -684,19 +679,9 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
             </button>
 
             {ttsEnabled && (
-              <select
-                className="py-2 px-2 border border-slate-200 rounded-xl text-[10px] font-bold text-slate-600 bg-white cursor-pointer"
-                value={ttsLang}
-                onChange={(e) => {
-                  const lang = e.target.value as 'en' | 'am' | 'om';
-                  setTtsLang(lang);
-                  localStorage.setItem('doctor_tts_lang', lang);
-                }}
-              >
-                <option value="am">Amharic</option>
-                <option value="om">Afaan Oromoo</option>
-                <option value="en">English</option>
-              </select>
+              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl uppercase tracking-wider">
+                AM + EN
+              </span>
             )}
 
             <button

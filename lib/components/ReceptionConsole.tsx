@@ -43,14 +43,13 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
   const [passwordError, setPasswordError] = useState<string>("");
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  const [audioEnabled, setAudioEnabled] = useState(() => localStorage.getItem('reception_tts_enabled') === 'true');
-  const [ttsLang, setTtsLang] = useState<'en' | 'am' | 'om'>(
-    () => (localStorage.getItem('reception_tts_lang') as 'en' | 'am' | 'om') || 'am'
-  );
+  const [audioEnabled, setAudioEnabled] = useState(() => {
+    const saved = localStorage.getItem('reception_tts_enabled');
+    return saved !== null ? saved === 'true' : true;
+  });
 
   useEffect(() => { preloadVoices(); }, []);
   useEffect(() => { localStorage.setItem('reception_tts_enabled', String(audioEnabled)); }, [audioEnabled]);
-  useEffect(() => { localStorage.setItem('reception_tts_lang', ttsLang); }, [ttsLang]);
 
   const priorityLevelOrder = { 'VIP': 3, 'Urgent': 2, 'Standard': 1 };
   const priorityOrder: Record<Priority, number> = { 'Emergency': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
@@ -87,7 +86,7 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
       if (res.ok) {
         playPleasantChime();
         if (audioEnabled) {
-          setTimeout(() => speakTicket(patientId, counterName, { lang: ttsLang }), 1200);
+          setTimeout(() => speakTicket(patientId, counterName), 1200);
         }
         onUpdatePatients();
       }
@@ -96,7 +95,7 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
     } finally {
       setLoadingAction(false);
     }
-  }, [counterName, audioEnabled, ttsLang, onUpdatePatients]);
+  }, [counterName, audioEnabled, onUpdatePatients]);
 
   const fetchActiveDoctors = useCallback(async () => {
     try {
@@ -283,7 +282,7 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
       if (res.ok) {
         playPleasantChime();
         if (audioEnabled) {
-          setTimeout(() => speakTicket(currentPatient.id, counterName, { lang: ttsLang }), 1200);
+          setTimeout(() => speakTicket(currentPatient.id, counterName), 1200);
         }
         onUpdatePatients();
       }
@@ -408,9 +407,7 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
                       className={`p-1.5 rounded-lg transition-all cursor-pointer ${audioEnabled ? 'bg-emerald-100 text-emerald-700' : 'text-slate-400 hover:text-slate-600'}`}>
                       {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
                     </button>
-                    <select value={ttsLang} onChange={(e) => setTtsLang(e.target.value as 'en' | 'am' | 'om')} className="text-[10px] font-bold bg-transparent outline-none cursor-pointer text-slate-600 pr-1">
-                      <option value="en">EN</option><option value="am">አማ</option><option value="om">OM</option>
-                    </select>
+                    <span className="text-[10px] font-bold text-slate-600 px-1">{audioEnabled ? 'AM+EN' : 'OFF'}</span>
                   </div>
                   <button type="button" onClick={handleLogout}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-transparent transition-all cursor-pointer uppercase tracking-wider">
