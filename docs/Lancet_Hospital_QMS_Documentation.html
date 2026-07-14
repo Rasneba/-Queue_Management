@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lancet General Hospital — Queue Management System Documentation</title>
+<style>
+  :root {
+    --blue: #2563eb;
+    --blue-light: #eff6ff;
+    --blue-dark: #1e40af;
+    --green: #059669;
+    --green-light: #ecfdf5;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --rose: #e11d48;
+    --rose-light: #fff1f2;
+    --slate: #334155;
+    --slate-light: #f8fafc;
+    --purple: #7c3aed;
+    --purple-light: #f5f3ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; color: #1e293b; line-height: 1.6; background: #f1f5f9; }
+  
+  .cover { 
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2563eb 100%);
+    color: white; text-align: center; padding: 3rem; position: relative; overflow: hidden;
+  }
+  .cover::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 50%, rgba(59,130,246,0.15) 0%, transparent 50%); }
+  .cover::after { content: ''; position: absolute; bottom: -50%; right: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 70% 50%, rgba(5,150,105,0.1) 0%, transparent 50%); }
+  .cover * { position: relative; z-index: 1; }
+  .cover-logo { width: 80px; height: 80px; background: rgba(255,255,255,0.1); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 1.5rem; font-size: 2rem; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); }
+  .cover h1 { font-size: 2.8rem; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 0.5rem; }
+  .cover h2 { font-size: 1.1rem; font-weight: 400; color: #94a3b8; margin-bottom: 2rem; }
+  .cover-meta { display: flex; gap: 2rem; font-size: 0.8rem; color: #64748b; }
+  .cover-meta span { display: flex; align-items: center; gap: 0.4rem; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+  
+  .section { margin-bottom: 3rem; }
+  .section-title { font-size: 1.6rem; font-weight: 800; color: #0f172a; margin-bottom: 0.3rem; letter-spacing: -0.02em; }
+  .section-subtitle { font-size: 0.85rem; color: #64748b; margin-bottom: 1.5rem; font-weight: 500; }
+  
+  .card { background: white; border-radius: 16px; padding: 1.5rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.2rem; }
+  .card-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.2rem; }
+  .card-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+  
+  .stat-card { background: white; border-radius: 14px; padding: 1.2rem; border: 1px solid #e2e8f0; text-align: center; }
+  .stat-card .icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.8rem; font-size: 1.3rem; }
+  .stat-card .value { font-size: 1.8rem; font-weight: 900; line-height: 1; }
+  .stat-card .label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-top: 0.3rem; }
+  
+  .workflow { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: wrap; padding: 1.5rem 0; }
+  .workflow-step { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 120px; }
+  .workflow-step .circle { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: white; margin-bottom: 0.5rem; font-weight: 700; }
+  .workflow-step .step-label { font-size: 0.75rem; font-weight: 700; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; }
+  .workflow-step .step-desc { font-size: 0.68rem; color: #94a3b8; max-width: 100px; margin-top: 0.2rem; }
+  .workflow-arrow { font-size: 1.2rem; color: #cbd5e1; margin: 0 0.3rem; padding-bottom: 2rem; }
+  
+  .feature-list { list-style: none; }
+  .feature-list li { padding: 0.6rem 0; border-bottom: 1px solid #f1f5f9; display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.85rem; }
+  .feature-list li:last-child { border-bottom: none; }
+  .feature-list .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; margin-top: 0.1rem; }
+  .badge-blue { background: var(--blue-light); color: var(--blue); }
+  .badge-green { background: var(--green-light); color: var(--green); }
+  .badge-amber { background: var(--amber-light); color: var(--amber); }
+  .badge-rose { background: var(--rose-light); color: var(--rose); }
+  .badge-purple { background: var(--purple-light); color: var(--purple); }
+  
+  .tech-stack { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .tech-item { display: flex; align-items: center; gap: 0.5rem; background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.6rem 1rem; font-size: 0.78rem; font-weight: 600; }
+  .tech-item .dot { width: 8px; height: 8px; border-radius: 50%; }
+  
+  table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+  table th { background: #f8fafc; padding: 0.6rem 0.8rem; text-align: left; font-weight: 700; color: #475569; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; border-bottom: 2px solid #e2e8f0; }
+  table td { padding: 0.6rem 0.8rem; border-bottom: 1px solid #f1f5f9; }
+  table tr:hover td { background: #f8fafc; }
+  table code { background: #f1f5f9; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.72rem; color: #7c3aed; font-family: 'Fira Code', 'Consolas', monospace; }
+  
+  .code-block { background: #0f172a; color: #e2e8f0; padding: 1rem 1.2rem; border-radius: 10px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 0.72rem; overflow-x: auto; line-height: 1.8; margin: 0.8rem 0; }
+  .code-block .kw { color: #c084fc; }
+  .code-block .str { color: #34d399; }
+  .code-block .cm { color: #64748b; }
+  .code-block .fn { color: #60a5fa; }
+  
+  .architecture-diagram { background: white; border-radius: 16px; padding: 2rem; border: 1px solid #e2e8f0; margin: 1.2rem 0; }
+  .arch-row { display: flex; justify-content: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .arch-box { padding: 0.6rem 1.2rem; border-radius: 10px; font-size: 0.75rem; font-weight: 700; text-align: center; min-width: 130px; border: 2px solid; }
+  .arch-connector { text-align: center; color: #94a3b8; font-size: 1.2rem; padding: 0.3rem 0; }
+  
+  .page-break { page-break-before: always; }
+  .print-only { display: none; }
+  
+  @media print {
+    body { background: white; }
+    .cover { min-height: auto; padding: 3rem; page-break-after: always; }
+    .container { padding: 1rem; }
+    .card { break-inside: avoid; }
+    .print-only { display: block; }
+    .no-print { display: none; }
+  }
+  
+  @media (max-width: 768px) {
+    .card-grid-3, .card-grid-4 { grid-template-columns: 1fr 1fr; }
+    .cover h1 { font-size: 2rem; }
+    .workflow { flex-direction: column; }
+    .workflow-arrow { transform: rotate(90deg); padding: 0.3rem 0; }
+  }
+
+  .role-card { border-left: 4px solid; }
+  .role-card.reception { border-color: var(--blue); }
+  .role-card.triage { border-color: var(--amber); }
+  .role-card.doctor { border-color: var(--green); }
+  .role-card.admin { border-color: var(--purple); }
+  
+  .role-header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.8rem; }
+  .role-header .role-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+  .role-header h3 { font-size: 0.95rem; font-weight: 800; }
+  
+  .timeline { position: relative; padding-left: 2rem; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 0; bottom: 0; width: 2px; background: #e2e8f0; }
+  .timeline-item { position: relative; margin-bottom: 1rem; }
+  .timeline-item::before { content: ''; position: absolute; left: -1.65rem; top: 0.4rem; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; background: white; }
+  .timeline-item.blue::before { border-color: var(--blue); }
+  .timeline-item.green::before { border-color: var(--green); }
+  .timeline-item.amber::before { border-color: var(--amber); }
+  .timeline-item.rose::before { border-color: var(--rose); }
+  .timeline-item.purple::before { border-color: var(--purple); }
+  .timeline-item h4 { font-size: 0.82rem; font-weight: 700; }
+  .timeline-item p { font-size: 0.75rem; color: #64748b; }
+
+  .toc { columns: 2; column-gap: 2rem; }
+  .toc-item { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px dotted #cbd5e1; font-size: 0.82rem; }
+  .toc-item .num { color: #94a3b8; font-weight: 600; margin-right: 0.5rem; }
+
+  .divider { height: 1px; background: linear-gradient(to right, transparent, #e2e8f0, transparent); margin: 3rem 0; }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <div class="cover-logo">&#x1F3E5;</div>
+  <h1>Lancet General Hospital</h1>
+  <h2>Smart Queue Management System &mdash; Technical Documentation</h2>
+  <div class="cover-meta">
+    <span>&#x1F4C5; July 2026</span>
+    <span>&#x1F4DD; Version 2.0</span>
+    <span>&#x1F4BB; Full-Stack Web Application</span>
+    <span>&#x1F310; Addis Ababa, Ethiopia</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- TABLE OF CONTENTS -->
+<div class="section">
+  <h2 class="section-title">Table of Contents</h2>
+  <div class="card" style="margin-top:1rem;">
+    <div class="toc">
+      <div class="toc-item"><span><span class="num">1</span> Executive Summary</span></div>
+      <div class="toc-item"><span><span class="num">2</span> System Architecture</span></div>
+      <div class="toc-item"><span><span class="num">3</span> Patient Workflow</span></div>
+      <div class="toc-item"><span><span class="num">4</span> Features by Role</span></div>
+      <div class="toc-item"><span><span class="num">5</span> TTS &amp; Amharic Voice</span></div>
+      <div class="toc-item"><span><span class="num">6</span> Back-office System</span></div>
+      <div class="toc-item"><span><span class="num">7</span> Technology Stack</span></div>
+      <div class="toc-item"><span><span class="num">8</span> Database Schema</span></div>
+      <div class="toc-item"><span><span class="num">9</span> API Reference</span></div>
+      <div class="toc-item"><span><span class="num">10</span> Deployment Guide</span></div>
+      <div class="toc-item"><span><span class="num">11</span> Performance &amp; Security</span></div>
+      <div class="toc-item"><span><span class="num">12</span> Future Roadmap</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 1. EXECUTIVE SUMMARY -->
+<div class="section">
+  <h2 class="section-title">1. Executive Summary</h2>
+  <p class="section-subtitle">A modern, multilingual queue management solution for Lancet General Hospital</p>
+  
+  <div class="card-grid-4">
+    <div class="stat-card">
+      <div class="icon" style="background:#eff6ff;color:#2563eb;">&#x1F4CB;</div>
+      <div class="value" style="color:#2563eb;">5</div>
+      <div class="label">Workflow Stages</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon" style="background:#ecfdf5;color:#059669;">&#x1F3AF;</div>
+      <div class="value" style="color:#059669;">3</div>
+      <div class="label">Languages</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon" style="background:#f5f3ff;color:#7c3aed;">&#x1F4CA;</div>
+      <div class="value" style="color:#7c3aed;">15+</div>
+      <div class="label">API Endpoints</div>
+    </div>
+    <div class="stat-card">
+      <div class="icon" style="background:#fffbeb;color:#d97706;">&#x1F50A;</div>
+      <div class="value" style="color:#d97706;">TTS</div>
+      <div class="label">Voice Announcements</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:1.2rem;">
+    <p style="font-size:0.88rem;line-height:1.8;color:#475569;">
+      The <strong>Lancet General Hospital Queue Management System</strong> is a full-stack web application designed to digitize and streamline the patient flow from check-in through doctor consultation. The system replaces manual paper-based queue management with an intelligent, real-time dashboard that supports <strong>Amharic</strong>, <strong>Afaan Oromoo</strong>, and <strong>English</strong> &mdash; including text-to-speech voice announcements using female Ethiopian voices.
+    </p>
+    <p style="font-size:0.88rem;line-height:1.8;color:#475569;margin-top:0.8rem;">
+      Key capabilities include <strong>self-service kiosk check-in</strong>, <strong>automatic patient calling</strong>, <strong>rule-based clinical triage</strong>, <strong>real-time waiting board displays</strong>, <strong>doctor shift management</strong>, and a comprehensive <strong>back-office admin panel</strong> for staff registration and performance reporting.
+    </p>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 2. SYSTEM ARCHITECTURE -->
+<div class="section">
+  <h2 class="section-title">2. System Architecture</h2>
+  <p class="section-subtitle">Next.js frontend + Python TTS server + Neon PostgreSQL cloud database</p>
+
+  <div class="architecture-diagram">
+    <div class="arch-row">
+      <div class="arch-box" style="background:#eff6ff;border-color:#2563eb;color:#1e40af;">
+        &#x1F4BB; Client Devices<br>
+        <small>Kiosk / TV Display / Doctor PC / Admin</small>
+      </div>
+    </div>
+    <div class="arch-connector">&#x25BC;</div>
+    <div class="arch-row">
+      <div class="arch-box" style="background:#f5f3ff;border-color:#7c3aed;color:#5b21b6;">
+        &#x26A1; Next.js Frontend<br>
+        <small>React 19 &bull; Tailwind CSS &bull; App Router</small>
+      </div>
+    </div>
+    <div class="arch-connector">&#x25BC;</div>
+    <div class="arch-row">
+      <div class="arch-box" style="background:#ecfdf5;border-color:#059669;color:#065f46;">
+        &#x1F4E6; Next.js API Routes<br>
+        <small>Patients, Doctors, Staff, Reports</small>
+      </div>
+      <div class="arch-box" style="background:#fffbeb;border-color:#d97706;color:#92400e;">
+        &#x1F50A; Python TTS Server<br>
+        <small>FastAPI + edge-tts (Amharic/Oromo)</small>
+      </div>
+    </div>
+    <div class="arch-connector">&#x25BC;</div>
+    <div class="arch-row">
+      <div class="arch-box" style="background:#eff6ff;border-color:#2563eb;color:#1e40af;">
+        &#x1F5C4; Neon PostgreSQL<br>
+        <small>Cloud Serverless &bull; Auto-scaling &bull; SSL</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="font-size:0.88rem;font-weight:800;margin-bottom:0.6rem;">&#x1F310; Main Application <code>/</code></h3>
+      <ul class="feature-list">
+        <li><span class="badge badge-blue">Frontend</span> Self-check-in kiosk with patient registration</li>
+        <li><span class="badge badge-blue">Frontend</span> Real-time waiting board with TTS announcements</li>
+        <li><span class="badge badge-green">API</span> 15+ REST endpoints for all operations</li>
+        <li><span class="badge badge-green">API</span> Auto-polling every 6 seconds for live updates</li>
+        <li><span class="badge badge-purple">TTS</span> Amharic/Afaan Oromoo/English voice system</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.88rem;font-weight:800;margin-bottom:0.6rem;">&#x1F3E2; Back-office <code>/backoffice</code></h3>
+      <ul class="feature-list">
+        <li><span class="badge badge-purple">Admin</span> Staff registration (Reception, Triage, Doctor)</li>
+        <li><span class="badge badge-purple">Admin</span> Password-based authentication per staff</li>
+        <li><span class="badge badge-amber">Reports</span> Triage performance analytics</li>
+        <li><span class="badge badge-amber">Reports</span> Reception throughput metrics</li>
+        <li><span class="badge badge-rose">Reports</span> Doctor performance &amp; shift reports</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 3. PATIENT WORKFLOW -->
+<div class="section">
+  <h2 class="section-title">3. Patient Workflow</h2>
+  <p class="section-subtitle">5-stage pipeline from check-in to doctor consultation</p>
+
+  <div class="card">
+    <div class="workflow">
+      <div class="workflow-step">
+        <div class="circle" style="background:linear-gradient(135deg,#059669,#10b981);">&#x2795;</div>
+        <div class="step-label">Check-in</div>
+        <div class="step-desc">Patient registers at kiosk or staff console</div>
+      </div>
+      <div class="workflow-arrow">&#x27A1;</div>
+      <div class="workflow-step">
+        <div class="circle" style="background:linear-gradient(135deg,#2563eb,#3b82f6);">&#x1F4FA;</div>
+        <div class="step-label">Waiting Board</div>
+        <div class="step-desc">Displayed on TV with auto TTS call</div>
+      </div>
+      <div class="workflow-arrow">&#x27A1;</div>
+      <div class="workflow-step">
+        <div class="circle" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);">&#x1F4CB;</div>
+        <div class="step-label">Reception</div>
+        <div class="step-desc">Verify, triage, assign to doctor</div>
+      </div>
+      <div class="workflow-arrow">&#x27A1;</div>
+      <div class="workflow-step">
+        <div class="circle" style="background:linear-gradient(135deg,#d97706,#f59e0b);">&#x1FA7A;</div>
+        <div class="step-label">Triage</div>
+        <div class="step-desc">Clinical priority assessment</div>
+      </div>
+      <div class="workflow-arrow">&#x27A1;</div>
+      <div class="workflow-step">
+        <div class="circle" style="background:linear-gradient(135deg,#e11d48,#f43f5e);">&#x2695;</div>
+        <div class="step-label">Doctor</div>
+        <div class="step-desc">Consultation, treatment, discharge</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-grid" style="margin-top:1.2rem;">
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.8rem;">&#x1F4DD; Stage Details</h3>
+      <div class="timeline">
+        <div class="timeline-item blue">
+          <h4>1. Self Check-in</h4>
+          <p>Patient enters name, age, gender, symptoms. Ticket P-N auto-generated. No triage at this stage.</p>
+        </div>
+        <div class="timeline-item blue">
+          <h4>2. Waiting Board</h4>
+          <p>Patients displayed by ticket order. When audio enabled, next patient is auto-called with Amharic TTS.</p>
+        </div>
+        <div class="timeline-item purple">
+          <h4>3. Reception</h4>
+          <p>Auto-calls next patient. Receptionist can Full Triage, Skip Triage, Recall, Hold, or Assign Doctor directly.</p>
+        </div>
+        <div class="timeline-item amber">
+          <h4>4. Triage</h4>
+          <p>Rule-based keyword triage assigns Emergency/High/Medium/Low priority + department routing.</p>
+        </div>
+        <div class="timeline-item rose">
+          <h4>5. Doctor</h4>
+          <p>Doctor starts shift, calls patient to room, treats, then completes &amp; discharges.</p>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.8rem;">&#x1F504; Patient Status Flow</h3>
+      <div class="code-block">
+<span class="cm">// Patient lifecycle states</span>
+<span class="str">Waiting</span> &rarr; <span class="str">Called</span> &rarr; <span class="str">Serving</span> &rarr; <span class="str">Completed</span>
+  |              |
+  +--&gt; <span class="str">NoShow</span>   +--&gt; <span class="str">Waiting</span> (Hold back)
+  
+<span class="cm">// Status transitions:</span>
+<span class="kw">Check-in</span>     &rarr; Waiting
+<span class="kw">Call</span>         &rarr; Called (assignedRoom set)
+<span class="kw">Serve</span>        &rarr; Serving
+<span class="kw">Complete</span>     &rarr; Completed (+ completedTime)
+<span class="kw">Hold</span>         &rarr; Waiting (back to queue)
+<span class="kw">No-Show</span>      &rarr; NoShow
+      </div>
+      <div style="margin-top:1rem;">
+        <h4 style="font-size:0.78rem;font-weight:700;margin-bottom:0.4rem;">Triage Priority Levels</h4>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+          <span style="padding:0.3rem 0.7rem;border-radius:8px;font-size:0.7rem;font-weight:700;background:#fef2f2;color:#dc2626;border:1px solid #fecaca;">Emergency (5)</span>
+          <span style="padding:0.3rem 0.7rem;border-radius:8px;font-size:0.7rem;font-weight:700;background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;">High (4)</span>
+          <span style="padding:0.3rem 0.7rem;border-radius:8px;font-size:0.7rem;font-weight:700;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;">Medium (3)</span>
+          <span style="padding:0.3rem 0.7rem;border-radius:8px;font-size:0.7rem;font-weight:700;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;">Low (1-2)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 4. FEATURES BY ROLE -->
+<div class="section">
+  <h2 class="section-title">4. Features by Role</h2>
+  <p class="section-subtitle">Each hospital role has a dedicated console with tailored functionality</p>
+
+  <div class="card-grid">
+    <div class="card role-card reception">
+      <div class="role-header">
+        <div class="role-icon" style="background:#eff6ff;color:#2563eb;">&#x1F4CB;</div>
+        <div>
+          <h3>Reception Console</h3>
+          <span style="font-size:0.7rem;color:#94a3b8;">Counter-based workflow</span>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="badge badge-blue">Auto</span> Auto-calls next waiting patient by ticket order</li>
+        <li><span class="badge badge-green">Triage</span> Full Triage with symptom editing + AI scoring</li>
+        <li><span class="badge badge-green">Triage</span> Skip Triage (use existing data)</li>
+        <li><span class="badge badge-amber">Doctor</span> Assign to active doctor only (from DB sessions)</li>
+        <li><span class="badge badge-rose">Control</span> Recall, Hold, No-Show patient actions</li>
+        <li><span class="badge badge-purple">TTS</span> Amharic voice announcements</li>
+        <li><span class="badge badge-blue">Auth</span> Password-protected counter login</li>
+      </ul>
+    </div>
+
+    <div class="card role-card triage">
+      <div class="role-header">
+        <div class="role-icon" style="background:#fffbeb;color:#d97706;">&#x1FA7A;</div>
+        <div>
+          <h3>Triage Team</h3>
+          <span style="font-size:0.7rem;color:#94a3b8;">Clinical priority assessment</span>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="badge badge-amber">Assess</span> Rule-based keyword triage (no AI dependency)</li>
+        <li><span class="badge badge-amber">Priority</span> Emergency / High / Medium / Low scoring</li>
+        <li><span class="badge badge-green">Route</span> Auto-assign department (Cardiology, Pediatrics, etc.)</li>
+        <li><span class="badge badge-blue">Vitals</span> Suggested vitals to measure per condition</li>
+        <li><span class="badge badge-purple">Explain</span> Clinical justification + precautions</li>
+        <li><span class="badge badge-rose">Override</span> Manual triage adjustment by doctor</li>
+        <li><span class="badge badge-green">Flow</span> Forward to doctor after triage</li>
+      </ul>
+    </div>
+
+    <div class="card role-card doctor">
+      <div class="role-header">
+        <div class="role-icon" style="background:#ecfdf5;color:#059669;">&#x2695;</div>
+        <div>
+          <h3>Doctor Dashboard</h3>
+          <span style="font-size:0.7rem;color:#94a3b8;">Consultation management</span>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="badge badge-green">Shift</span> Start/End shift (DB-backed, not localStorage)</li>
+        <li><span class="badge badge-green">Room</span> Assign consulting room per shift</li>
+        <li><span class="badge badge-blue">Queue</span> View patients by status tabs</li>
+        <li><span class="badge badge-amber">Call</span> Call patient to room with TTS announcement</li>
+        <li><span class="badge badge-purple">Treat</span> Start treatment &rarr; Complete &amp; discharge</li>
+        <li><span class="badge badge-rose">Override</span> Manual triage priority adjustment</li>
+        <li><span class="badge badge-blue">Stats</span> Shift duration timer + patients treated count</li>
+      </ul>
+    </div>
+
+    <div class="card role-card admin">
+      <div class="role-header">
+        <div class="role-icon" style="background:#f5f3ff;color:#7c3aed;">&#x1F3E2;</div>
+        <div>
+          <h3>Back-office Admin</h3>
+          <span style="font-size:0.7rem;color:#94a3b8;">/backoffice</span>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="badge badge-purple">Staff</span> Register Reception / Triage / Doctor staff</li>
+        <li><span class="badge badge-purple">Auth</span> Password-protected login per staff member</li>
+        <li><span class="badge badge-amber">Reports</span> Triage performance (priority distribution)</li>
+        <li><span class="badge badge-amber">Reports</span> Reception throughput (check-ins by hour)</li>
+        <li><span class="badge badge-amber">Reports</span> Doctor performance (patients treated, shifts)</li>
+        <li><span class="badge badge-green">Filters</span> Daily / Weekly / Monthly / Custom date range</li>
+        <li><span class="badge badge-blue">Staff</span> Filter reports by specific staff member</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 5. TTS & VOICE SYSTEM -->
+<div class="section">
+  <h2 class="section-title">5. Text-to-Speech &amp; Amharic Voice System</h2>
+  <p class="section-subtitle">Real-time multilingual voice announcements using Microsoft Edge TTS</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x1F50A; Voice Engine</h3>
+      <ul class="feature-list">
+        <li><span class="badge badge-blue">Engine</span> Microsoft Edge TTS (edge-tts Python package)</li>
+        <li><span class="badge badge-green">Voice</span> <code>am-ET-MekdesNeural</code> (Female Amharic)</li>
+        <li><span class="badge badge-amber">Voice</span> <code>om-ET-AmehaNeural</code> (Female Afaan Oromoo)</li>
+        <li><span class="badge badge-purple">Voice</span> <code>en-US-JennyNeural</code> (Female English)</li>
+        <li><span class="badge badge-rose">Server</span> FastAPI on port 8765 (Python edge-tts)</li>
+        <li><span class="badge badge-blue">Fallback</span> Browser Web Speech API for Vercel/deploy</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x1F4E3; Amharic Number System</h3>
+      <div class="code-block" style="font-size:0.7rem;">
+<span class="cm">// Full Amharic number conversion (0-999,999)</span>
+P-1  &rarr; <span class="str">"አንድ ታሪኝ"</span>           <span class="cm">// One ticket</span>
+P-5  &rarr; <span class="str">"አምስት ታሪኝ"</span>         <span class="cm">// Five tickets</span>
+P-12 &rarr; <span class="str">"አሥራ ሁለት ታሪኝ"</span>     <span class="cm">// Twelve tickets</span>
+P-25 &rarr; <span class="str">"ሀያ አምስት ታሪኝ"</span>     <span class="cm">// Twenty-five</span>
+P-100 &rarr; <span class="str">"መቶ ታሪኝ"</span>          <span class="cm">// One hundred</span>
+P-1000 &rarr; <span class="str">"ሺህ ታሪኝ"</span>         <span class="cm">// One thousand</span>
+
+<span class="cm">// Full announcement:</span>
+<span class="str">"ታሪኝ አንድ እባክዎን መቅበያ ክፍል ይ来临"</span>
+<span class="cm">"Ticket One, please come to reception"</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 6. BACKOFFICE -->
+<div class="section">
+  <h2 class="section-title">6. Back-office System</h2>
+  <p class="section-subtitle">Separate admin panel at /backoffice with staff auth and reporting</p>
+
+  <div class="card-grid-3">
+    <div class="card" style="border-top:3px solid #7c3aed;">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x1F512; Login</h3>
+      <ul class="feature-list">
+        <li>Staff name + password authentication</li>
+        <li>Session stored in localStorage</li>
+        <li>Auto-redirect if already logged in</li>
+        <li>Role-based access control</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid #2563eb;">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x1F465; Staff Management</h3>
+      <ul class="feature-list">
+        <li>Register with Name + Role + Password + Department</li>
+        <li>Three roles: Reception, Triage, Doctor</li>
+        <li>Filter by role, view registration date</li>
+        <li>Remove staff with confirmation</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid #059669;">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x1F4CA; Reports</h3>
+      <ul class="feature-list">
+        <li>Triage: priority distribution + completion rate</li>
+        <li>Reception: check-ins by hour + status breakdown</li>
+        <li>Doctor: patients treated + shift hours + avg/shift</li>
+        <li>Date filters + staff selector</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 7. TECH STACK -->
+<div class="section">
+  <h2 class="section-title">7. Technology Stack</h2>
+  <p class="section-subtitle">Modern, production-ready technologies</p>
+
+  <div class="card">
+    <div class="tech-stack">
+      <div class="tech-item"><div class="dot" style="background:#000;"></div> Next.js 15 (App Router)</div>
+      <div class="tech-item"><div class="dot" style="background:#61dafb;"></div> React 19</div>
+      <div class="tech-item"><div class="dot" style="background:#06b6d4;"></div> TypeScript 5</div>
+      <div class="tech-item"><div class="dot" style="background:#38bdf8;"></div> Tailwind CSS 4</div>
+      <div class="tech-item"><div class="dot" style="background:#7c3aed;"></div> Framer Motion 12</div>
+      <div class="tech-item"><div class="dot" style="background:#22c55e;"></div> Lucide Icons</div>
+      <div class="tech-item"><div class="dot" style="background:#3b82f6;"></div> Recharts (Analytics)</div>
+      <div class="tech-item"><div class="dot" style="background:#059669;"></div> Neon PostgreSQL</div>
+      <div class="tech-item"><div class="dot" style="background:#f59e0b;"></div> Python FastAPI</div>
+      <div class="tech-item"><div class="dot" style="background:#e11d48;"></div> Microsoft Edge TTS</div>
+      <div class="tech-item"><div class="dot" style="background:#8b5cf6;"></div> Vercel-ready</div>
+      <div class="tech-item"><div class="dot" style="background:#ec4899;"></div> GitHub CI/CD</div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 8. DATABASE SCHEMA -->
+<div class="section">
+  <h2 class="section-title">8. Database Schema</h2>
+  <p class="section-subtitle">4 tables in Neon PostgreSQL with serverless connections</p>
+
+  <div class="card" style="overflow-x:auto;">
+    <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.8rem;">patients &mdash; Core patient records</h3>
+    <table>
+      <thead>
+        <tr><th>Column</th><th>Type</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>TEXT PK</td><td>Ticket ID (P-1, P-2, ...)</td></tr>
+        <tr><td><code>name</code></td><td>TEXT</td><td>Patient full name</td></tr>
+        <tr><td><code>age</code></td><td>INTEGER</td><td>Patient age</td></tr>
+        <tr><td><code>gender</code></td><td>TEXT</td><td>Male / Female / Other</td></tr>
+        <tr><td><code>symptoms</code></td><td>TEXT</td><td>Patient-reported symptoms</td></tr>
+        <tr><td><code>triage_priority</code></td><td>TEXT</td><td>Emergency / High / Medium / Low</td></tr>
+        <tr><td><code>triage_score</code></td><td>INTEGER</td><td>1-5 clinical score</td></tr>
+        <tr><td><code>recommended_department</code></td><td>TEXT</td><td>Auto-assigned specialty</td></tr>
+        <tr><td><code>assigned_room</code></td><td>TEXT</td><td>Room or counter name</td></tr>
+        <tr><td><code>status</code></td><td>TEXT</td><td>Waiting / Called / Serving / Completed / NoShow</td></tr>
+        <tr><td><code>check_in_time</code></td><td>TIMESTAMPTZ</td><td>When patient checked in</td></tr>
+        <tr><td><code>called_time</code></td><td>TIMESTAMPTZ</td><td>When patient was called</td></tr>
+        <tr><td><code>completed_time</code></td><td>TIMESTAMPTZ</td><td>When patient was discharged</td></tr>
+        <tr><td><code>estimated_wait_minutes</code></td><td>INTEGER</td><td>Estimated wait time</td></tr>
+        <tr><td><code>ai_explanation</code></td><td>TEXT</td><td>Triage justification text</td></tr>
+        <tr><td><code>ai_precaution</code></td><td>TEXT</td><td>Clinical precautions</td></tr>
+        <tr><td><code>ai_vitals</code></td><td>TEXT</td><td>Suggested vitals (JSON array)</td></tr>
+        <tr><td><code>mobile</code></td><td>TEXT</td><td>Patient phone number</td></tr>
+        <tr><td><code>service</code></td><td>TEXT</td><td>Service type</td></tr>
+        <tr><td><code>priority_level</code></td><td>TEXT</td><td>Standard / Urgent / VIP</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-grid" style="margin-top:1.2rem;">
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">doctor_sessions</h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>TEXT PK</td></tr>
+          <tr><td><code>doctor_name</code></td><td>TEXT</td></tr>
+          <tr><td><code>room</code></td><td>TEXT</td></tr>
+          <tr><td><code>department</code></td><td>TEXT</td></tr>
+          <tr><td><code>start_time</code></td><td>TIMESTAMPTZ</td></tr>
+          <tr><td><code>end_time</code></td><td>TIMESTAMPTZ</td></tr>
+          <tr><td><code>is_active</code></td><td>BOOLEAN</td></tr>
+          <tr><td><code>patients_treated</code></td><td>TEXT[]</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">staff</h3>
+      <table>
+        <thead><tr><th>Column</th><th>Type</th></tr></thead>
+        <tbody>
+          <tr><td><code>id</code></td><td>TEXT PK</td></tr>
+          <tr><td><code>name</code></td><td>TEXT</td></tr>
+          <tr><td><code>role</code></td><td>TEXT (CHECK)</td></tr>
+          <tr><td><code>password</code></td><td>TEXT</td></tr>
+          <tr><td><code>department</code></td><td>TEXT</td></tr>
+          <tr><td><code>created_at</code></td><td>TIMESTAMPTZ</td></tr>
+          <tr><td><code>is_active</code></td><td>BOOLEAN</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- 9. API REFERENCE -->
+<div class="section">
+  <h2 class="section-title">9. API Reference</h2>
+  <p class="section-subtitle">RESTful endpoints powering the application</p>
+
+  <div class="card" style="overflow-x:auto;">
+    <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.8rem;">Patient Endpoints</h3>
+    <table>
+      <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Body</th></tr></thead>
+      <tbody>
+        <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/patients</code></td><td>List all patients</td><td>&mdash;</td></tr>
+        <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/stats</code></td><td>Queue statistics</td><td>&mdash;</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/checkin</code></td><td>New patient check-in</td><td>{name, age, gender, symptoms}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/call</code></td><td>Call patient to room</td><td>{id, room}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/serve</code></td><td>Start serving patient</td><td>{id}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/complete</code></td><td>Complete &amp; discharge</td><td>{id}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/transfer</code></td><td>Transfer to new room</td><td>{id, assignedRoom, status}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/hold</code></td><td>Hold back to queue</td><td>{id}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/no-show</code></td><td>Mark no-show</td><td>{id}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/override</code></td><td>Override triage</td><td>{id, triagePriority, recommendedDepartment}</td></tr>
+        <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/patients/triage-existing</code></td><td>Re-triage patient</td><td>{id, symptoms}</td></tr>
+        <tr><td><span class="badge badge-rose">POST</span></td><td><code>/api/reset</code></td><td>Reset database</td><td>&mdash;</td></tr>
+        <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/track/[token]</code></td><td>Patient tracking</td><td>&mdash;</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-grid" style="margin-top:1.2rem;">
+    <div class="card" style="overflow-x:auto;">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">Doctor Endpoints</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/doctors/active</code></td><td>Active doctor sessions</td></tr>
+          <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/doctors/start</code></td><td>Start shift</td></tr>
+          <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/doctors/end</code></td><td>End shift</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/doctors/history</code></td><td>Completed shift logs</td></tr>
+          <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/doctors/update-patients-treated</code></td><td>Add patient to shift</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card" style="overflow-x:auto;">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">Staff &amp; Reports</h3>
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/staff</code></td><td>List all staff</td></tr>
+          <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/staff</code></td><td>Register new staff</td></tr>
+          <tr><td><span class="badge badge-rose">DEL</span></td><td><code>/api/staff/[id]</code></td><td>Remove staff</td></tr>
+          <tr><td><span class="badge badge-amber">POST</span></td><td><code>/api/staff/login</code></td><td>Staff authentication</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/reports</code></td><td>Analytics data</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/init</code></td><td>DB migration + seed</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 10. DEPLOYMENT -->
+<div class="section">
+  <h2 class="section-title">10. Deployment Guide</h2>
+  <p class="section-subtitle">How to run and deploy the system</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.8rem;">&#x1F680; Quick Start (Development)</h3>
+      <div class="code-block">
+<span class="cm"># 1. Clone the repository</span>
+git clone https://github.com/Rasneba/-Queue_Management.git
+cd Queue_Management
+
+<span class="cm"># 2. Install dependencies</span>
+npm install
+pip install fastapi uvicorn edge-tts
+
+<span class="cm"># 3. Set environment variables</span>
+<span class="kw">echo</span> <span class="str">"DATABASE_URL=postgresql://..."</span> > .env.local
+
+<span class="cm"># 4. Start everything (Next.js + TTS server)</span>
+npm run dev
+
+<span class="cm"># 5. Initialize database (first time)</span>
+curl http://localhost:3000/api/init
+      </div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.8rem;">&#x2601;&#xFE0F; Production (Vercel)</h3>
+      <div class="code-block">
+<span class="cm"># Environment Variables for Vercel:</span>
+DATABASE_URL=postgresql://...
+
+<span class="cm"># Note: TTS requires Python server.</span>
+<span class="cm"># For Vercel deployment, TTS falls back</span>
+<span class="cm"># to browser Web Speech API.</span>
+
+<span class="cm"># For full TTS support, deploy alongside</span>
+<span class="cm"># a Python server (Railway/Render/Fly.io)</span>
+      </div>
+      <div style="margin-top:1rem;padding:0.8rem;background:#ecfdf5;border-radius:8px;font-size:0.75rem;color:#065f46;">
+        <strong>Recommended Production Stack:</strong><br>
+        Frontend: Vercel (auto-deploy from GitHub)<br>
+        TTS Server: Railway or Render<br>
+        Database: Neon PostgreSQL (serverless)
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 11. PERFORMANCE & SECURITY -->
+<div class="section">
+  <h2 class="section-title">11. Performance &amp; Security</h2>
+  <p class="section-subtitle">Optimized for speed and reliability</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x26A1; Performance Optimizations</h3>
+      <ul class="feature-list">
+        <li><span class="badge badge-green">Smart Polling</span> Skip re-renders when data unchanged (JSON diff)</li>
+        <li><span class="badge badge-green">Memoization</span> useMemo for patient filters, counts, derived data</li>
+        <li><span class="badge badge-green">Code Splitting</span> All views lazy-loaded via next/dynamic</li>
+        <li><span class="badge badge-blue">Serverless DB</span> Neon PostgreSQL scales to zero when idle</li>
+        <li><span class="badge badge-blue">Edge Runtime</span> API routes run at the edge for low latency</li>
+        <li><span class="badge badge-purple">TTS Caching</span> Audio cached on client to reduce API calls</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="font-size:0.85rem;font-weight:800;margin-bottom:0.6rem;">&#x1F512; Security</h3>
+      <ul class="feature-list">
+        <li><span class="badge badge-amber">Auth</span> Password-protected reception counters</li>
+        <li><span class="badge badge-amber">Auth</span> Password-protected back-office access</li>
+        <li><span class="badge badge-blue">SSL</span> Neon DB connection uses SSL mode</li>
+        <li><span class="badge badge-blue">Env</span> Database credentials in .env.local (not committed)</li>
+        <li><span class="badge badge-purple">Input</span> All API routes validate required fields</li>
+        <li><span class="badge badge-green">HTTPS</span> Ready for HTTPS in production</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- 12. ROADMAP -->
+<div class="section">
+  <h2 class="section-title">12. Future Roadmap</h2>
+  <p class="section-subtitle">Planned enhancements for phase 2</p>
+
+  <div class="card-grid-3">
+    <div class="card" style="border-top:3px solid #2563eb;">
+      <h3 style="font-size:0.82rem;font-weight:800;margin-bottom:0.5rem;">&#x1F4F1; Patient App</h3>
+      <ul class="feature-list">
+        <li style="font-size:0.78rem;">Mobile-responsive patient tracking</li>
+        <li style="font-size:0.78rem;">SMS notifications when turn approaches</li>
+        <li style="font-size:0.78rem;">QR code check-in from phone</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid #059669;">
+      <h3 style="font-size:0.82rem;font-weight:800;margin-bottom:0.5rem;">&#x1F9E0; AI Enhancement</h3>
+      <ul class="feature-list">
+        <li style="font-size:0.78rem;">ML-based triage scoring</li>
+        <li style="font-size:0.78rem;">Predictive wait time optimization</li>
+        <li style="font-size:0.78rem;">Natural language symptom analysis</li>
+      </ul>
+    </div>
+    <div class="card" style="border-top:3px solid #d97706;">
+      <h3 style="font-size:0.82rem;font-weight:800;margin-bottom:0.5rem;">&#x1F4CA; Advanced Analytics</h3>
+      <ul class="feature-list">
+        <li style="font-size:0.78rem;">Real-time dashboard on lobby TV</li>
+        <li style="font-size:0.78rem;">Exportable PDF reports</li>
+        <li style="font-size:0.78rem;">Multi-branch hospital support</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="divider"></div>
+<div style="text-align:center;padding:2rem 0;color:#94a3b8;font-size:0.75rem;">
+  <p style="font-weight:700;color:#475569;">Lancet General Hospital &mdash; Queue Management System</p>
+  <p>Documentation generated July 2026 &bull; Version 2.0 &bull; Addis Ababa, Ethiopia</p>
+  <p style="margin-top:0.5rem;">Repository: github.com/Rasneba/-Queue_Management</p>
+</div>
+
+</div>
+</body>
+</html>
