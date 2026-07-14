@@ -58,7 +58,7 @@ export async function initDB() {
     CREATE TABLE IF NOT EXISTS staff (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('Reception', 'Triage', 'Doctor')),
+      role TEXT NOT NULL CHECK (role IN ('Reception', 'Triage', 'Doctor', 'Admin')),
       password TEXT NOT NULL,
       department TEXT DEFAULT 'General Medicine',
       created_at TIMESTAMPTZ DEFAULT NOW(),
