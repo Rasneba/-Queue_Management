@@ -2,7 +2,13 @@ import { Priority, Department } from "./types";
 import sql from "./db";
 import { Pool } from "@neondatabase/serverless";
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+let _pool: Pool | null = null;
+function getPool(): Pool {
+  if (!_pool) {
+    _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  }
+  return _pool;
+}
 
 function rowToPatient(row: Record<string, unknown>): {
   id: string; name: string; age: number; gender: string; symptoms: string;
@@ -97,7 +103,7 @@ export async function updatePatient(id: string, updates: Record<string, unknown>
   }
 
   values.push(id);
-  await pool.query(`UPDATE patients SET ${setClause} WHERE id = $${idx}`, values);
+  await getPool().query(`UPDATE patients SET ${setClause} WHERE id = $${idx}`, values);
 }
 
 export async function getNextPatientNumber(): Promise<number> {
