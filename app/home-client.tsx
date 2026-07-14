@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import dynamic from 'next/dynamic';
 import {
-  Heart, Tv, Stethoscope, BarChart2, CheckCircle2,
+  Heart, Tv, Stethoscope, BarChart2, BarChart3, CheckCircle2,
   AlertCircle, RefreshCw, PlusCircle, UserCheck, Ticket, Globe
 } from 'lucide-react';
 import { Patient } from '@/lib/types';
@@ -17,10 +17,11 @@ const KioskView = dynamic(() => import('@/lib/components/KioskView'), { ssr: fal
 const WaitingBoard = dynamic(() => import('@/lib/components/WaitingBoard'), { ssr: false });
 const DoctorDashboard = dynamic(() => import('@/lib/components/DoctorDashboard'), { ssr: false });
 const AnalyticsView = dynamic(() => import('@/lib/components/AnalyticsView'), { ssr: false });
+const Reports = dynamic(() => import('@/lib/components/Reports'), { ssr: false });
 const ReceptionConsole = dynamic(() => import('@/lib/components/ReceptionConsole'), { ssr: false });
 
 export default function HomeClient() {
-  const [activeView, setActiveView] = useState<'checkin' | 'triage' | 'board' | 'doctor' | 'analytics' | 'reception'>('checkin');
+  const [activeView, setActiveView] = useState<'checkin' | 'triage' | 'board' | 'doctor' | 'analytics' | 'reception' | 'reports'>('checkin');
   const [language, setLanguage] = useState<Language>('en');
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -212,6 +213,17 @@ export default function HomeClient() {
                 <BarChart2 className="w-3.5 h-3.5" />
                 {t('tabAnalytics', language)}
               </button>
+              <button
+                onClick={() => setActiveView('reports')}
+                className={`flex items-center gap-1.5 py-1.5 px-3.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                  activeView === 'reports'
+                    ? 'bg-white text-blue-600 shadow-sm font-bold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                Reports
+              </button>
             </nav>
 
             <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200/40">
@@ -293,6 +305,9 @@ export default function HomeClient() {
             )}
             {activeView === 'analytics' && (
               <AnalyticsView patients={patients} />
+            )}
+            {activeView === 'reports' && (
+              <Reports />
             )}
           </motion.div>
         </AnimatePresence>

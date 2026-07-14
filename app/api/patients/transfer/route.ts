@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findPatient, recalculateWaitTimes } from "@/lib/store";
+import { findPatient, updatePatient, recalculateWaitTimes } from "@/lib/store";
 
 export async function POST(request: NextRequest) {
   const { id, recommendedDepartment, assignedRoom, status } = await request.json();
@@ -7,28 +7,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Missing patient ID" }, { status: 400 });
   }
 
-  const patient = findPatient(id);
+  const patient = await findPatient(id);
   if (!patient) {
     return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
-  if (recommendedDepartment) {
-    patient.recommendedDepartment = recommendedDepartment;
-  }
-  if (assignedRoom !== undefined) {
-    patient.assignedRoom = assignedRoom;
-  }
+  const updates: Record<string, unknown> = {};
+  if (recommendedDepartment) updates.recommendedDepartment = recommendedDepartment;
+  if (assignedRoom !== undefined) updates.assignedRoom = assignedRoom;
   if (status) {
-    patient.status = status;
-    if (status === 'Called') {
-      patient.calledTime = new Date().toISOString();
-    }
+    updates.status = status;
+    if (status === "Called") updates.calledTime = new Date().toISOString();
   } else {
-    patient.status = "Waiting";
-    patient.assignedRoom = null;
-    patient.calledTime = null;
+    updates.status = "Waiting";
+    updates.assignedRoom = null;
+    updates.calledTime = null;
   }
 
-  recalculateWaitTimes();
-  return NextResponse.json(patient);
+  await updatePatient(id, updates);
+  await recalculateWaitTimes();
+  const updated = await findPatient(id);
+  return NextResponse.json(updated);
 }

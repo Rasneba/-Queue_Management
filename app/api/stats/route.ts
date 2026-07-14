@@ -3,8 +3,8 @@ import { getPatients, recalculateWaitTimes } from "@/lib/store";
 import { Department, Priority } from "@/lib/types";
 
 export async function GET() {
-  const patients = getPatients();
-  recalculateWaitTimes();
+  await recalculateWaitTimes();
+  const patients = await getPatients();
 
   const waiting = patients.filter(p => p.status === 'Waiting');
   const called = patients.filter(p => p.status === 'Called');

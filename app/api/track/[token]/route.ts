@@ -8,7 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
-  const allPatients = getPatients();
+  const allPatients = await getPatients();
   const patient = allPatients.find((p) => p.id === token);
 
   if (!patient) {

@@ -1,228 +1,160 @@
-import { Patient, Priority, Department } from "./types";
+import { Priority, Department } from "./types";
+import sql from "./db";
+import { Pool } from "@neondatabase/serverless";
 
-// In-memory clinic state
-let patients: Patient[] = [
-  {
-    id: "P-1",
-    name: "Ato Tesfaye Bekele",
-    age: 58,
-    gender: "Male",
-    symptoms: "Crushing chest pain radiating to left arm, shortness of breath, and profuse sweating since morning",
-    triagePriority: "Emergency",
-    triageScore: 5,
-    recommendedDepartment: "Cardiology",
-    assignedRoom: "Trauma Room 2",
-    status: "Serving",
-    checkInTime: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-    calledTime: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
-    completedTime: null,
-    estimatedWaitMinutes: 0,
-    aiAnalysis: {
-      priorityExplanation: "Symptoms strongly indicate acute coronary syndrome or myocardial infarction (heart attack). Requires immediate diagnostic ECG, cardiac enzyme profiling, and emergency medical intervention.",
-      clinicalPrecaution: "Patient must not stand or walk. Administer supplemental oxygen if hypoxic, establish IV access, and monitor ECG continuously. Prepare defibrillator.",
-      suggestedVitalsToMeasure: ["12-Lead Electrocardiogram (ECG)", "Blood Pressure (continuous)", "Oxygen Saturation (SpO2)"]
-    }
-  },
-  {
-    id: "P-2",
-    name: "Sara Ahmed",
-    age: 5,
-    gender: "Female",
-    symptoms: "High fever 39.5C for 2 days, coughing, refusing to eat, weak and lethargic",
-    triagePriority: "High",
-    triageScore: 4,
-    recommendedDepartment: "Pediatrics",
-    assignedRoom: "Room 4",
-    status: "Called",
-    checkInTime: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-    calledTime: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
-    completedTime: null,
-    estimatedWaitMinutes: 0,
-    aiAnalysis: {
-      priorityExplanation: "High fever with lethargy in a young child raises concern for serious infection including pneumonia, meningitis, or malaria. Requires urgent clinical assessment.",
-      clinicalPrecaution: "Keep the child calm and comfortable. Monitor temperature closely. Ensure hydration. Have pediatric emergency equipment ready.",
-      suggestedVitalsToMeasure: ["Body Temperature", "Respiratory Rate", "Oxygen Saturation (SpO2)"]
-    }
-  },
-  {
-    id: "P-3",
-    name: "W/ro Hirut Mengistu",
-    age: 45,
-    gender: "Female",
-    symptoms: "Sudden severe headache, worst of my life, with nausea and vomiting, stiff neck, sensitivity to light",
-    triagePriority: "Emergency",
-    triageScore: 5,
-    recommendedDepartment: "Neurology",
-    assignedRoom: "Trauma Room 1",
-    status: "Serving",
-    checkInTime: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-    calledTime: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
-    completedTime: null,
-    estimatedWaitMinutes: 0,
-    aiAnalysis: {
-      priorityExplanation: "Thunderclap headache with meningismus is highly suspicious for subarachnoid hemorrhage or bacterial meningitis. Both are life-threatening emergencies.",
-      clinicalPrecaution: "Immediate CT scan of the head. Avoid lumbar puncture until hemorrhage is excluded. Monitor neurological status closely. Prepare for possible neurosurgical intervention.",
-      suggestedVitalsToMeasure: ["Blood Pressure", "Glasgow Coma Scale", "Pupil Reactivity"]
-    }
-  },
-  {
-    id: "P-4",
-    name: "Ato Daniel Girma",
-    age: 32,
-    gender: "Male",
-    symptoms: "Road traffic accident, fractured right femur, severe pain, leg shortened and externally rotated",
-    triagePriority: "High",
-    triageScore: 4,
-    recommendedDepartment: "Orthopedics",
-    assignedRoom: "Room 3",
-    status: "Waiting",
-    checkInTime: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-    calledTime: null,
-    completedTime: null,
-    estimatedWaitMinutes: 15,
-    aiAnalysis: {
-      priorityExplanation: "Closed femoral fracture from road traffic accident. Risk of fat embolism, neurovascular compromise, and significant blood loss. Needs urgent orthopedic consultation.",
-      clinicalPrecaution: "Apply skeletal traction or splint. Check distal pulses. Monitor for compartment syndrome. Cross-match blood. NPO in case surgery is needed.",
-      suggestedVitalsToMeasure: ["Blood Pressure", "Heart Rate", "Distal Pulses", "Hemoglobin"]
-    }
-  },
-  {
-    id: "P-5",
-    name: "W/ro Fatima Yusuf",
-    age: 28,
-    gender: "Female",
-    symptoms: "8 months pregnant, severe headaches, blurred vision, swelling of face and hands, blood pressure 170/110",
-    triagePriority: "High",
-    triageScore: 4,
-    recommendedDepartment: "Gynecology",
-    assignedRoom: "Room 5",
-    status: "Waiting",
-    checkInTime: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-    calledTime: null,
-    completedTime: null,
-    estimatedWaitMinutes: 12,
-    aiAnalysis: {
-      priorityExplanation: "Severe pre-eclampsia with concerning blood pressure readings. Risk of eclamptic seizure and HELLP syndrome. Requires immediate obstetric assessment.",
-      clinicalPrecaution: "Administer magnesium sulfate prophylactically. Keep patient in left lateral position. Prepare for possible emergency cesarean section. Monitor fetal heart rate.",
-      suggestedVitalsToMeasure: ["Blood Pressure (every 15 min)", "Urine Output", "Fetal Heart Rate", "Reflexes"]
-    }
-  },
-  {
-    id: "P-6",
-    name: "Mulu Girma",
-    age: 41,
-    gender: "Female",
-    symptoms: "Persistent cough for 3 weeks, night sweats, weight loss, occasional blood in sputum",
-    triagePriority: "Medium",
-    triageScore: 3,
-    recommendedDepartment: "General Medicine",
-    assignedRoom: null,
-    status: "Waiting",
-    checkInTime: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-    calledTime: null,
-    completedTime: null,
-    estimatedWaitMinutes: 35,
-    aiAnalysis: {
-      priorityExplanation: "Chronic cough with hemoptysis, night sweats, and weight loss is highly suspicious for pulmonary tuberculosis, which is endemic in Ethiopia. Sputum AFB and chest X-ray required.",
-      clinicalPrecaution: "Isolate patient. Use N95 mask. Collect 3 sputum samples for AFB smear and culture. Chest X-ray. Begin TB workup immediately.",
-      suggestedVitalsToMeasure: ["Chest X-ray", "Sputum AFB", "HIV Test", "Weight"]
-    }
-  },
-  {
-    id: "P-7",
-    name: "Ato Solomon Dinku",
-    age: 72,
-    gender: "Male",
-    symptoms: "Prescription renewal for diabetes and hypertension, feeling fine, just routine check",
-    triagePriority: "Low",
-    triageScore: 1,
-    recommendedDepartment: "General Medicine",
-    assignedRoom: "Room 1",
-    status: "Completed",
-    checkInTime: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
-    calledTime: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-    completedTime: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
-    estimatedWaitMinutes: 0,
-    aiAnalysis: {
-      priorityExplanation: "Routine clinic consultation for chronic disease management (diabetes mellitus, hypertension). Patient is hemodynamically stable with no acute concerns.",
-      clinicalPrecaution: "Confirm medication compliance, verify any reported side effects, check blood glucose and HbA1c. Conduct standard chronic disease clinic review.",
-      suggestedVitalsToMeasure: ["Blood Pressure", "Fasting Blood Glucose", "Heart Rate", "Weight"]
-    }
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+function rowToPatient(row: Record<string, unknown>): {
+  id: string; name: string; age: number; gender: string; symptoms: string;
+  triagePriority: Priority; triageScore: number; recommendedDepartment: Department;
+  assignedRoom: string | null; status: string; checkInTime: string;
+  calledTime: string | null; completedTime: string | null;
+  estimatedWaitMinutes: number; aiAnalysis: {
+    priorityExplanation: string; clinicalPrecaution: string;
+    suggestedVitalsToMeasure: string[];
+  } | null;
+  mobile?: string; service?: string;
+  priorityLevel?: 'Standard' | 'Urgent' | 'VIP';
+} {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    age: row.age as number,
+    gender: row.gender as string,
+    symptoms: row.symptoms as string,
+    triagePriority: row.triage_priority as Priority,
+    triageScore: row.triage_score as number,
+    recommendedDepartment: row.recommended_department as Department,
+    assignedRoom: row.assigned_room as string | null,
+    status: row.status as string,
+    checkInTime: row.check_in_time as string,
+    calledTime: row.called_time as string | null,
+    completedTime: row.completed_time as string | null,
+    estimatedWaitMinutes: row.estimated_wait_minutes as number,
+    aiAnalysis: row.ai_explanation ? {
+      priorityExplanation: row.ai_explanation as string,
+      clinicalPrecaution: row.ai_precaution as string,
+      suggestedVitalsToMeasure: JSON.parse(row.ai_vitals as string || '[]'),
+    } : null,
+    mobile: row.mobile as string | undefined,
+    service: row.service as string | undefined,
+    priorityLevel: row.priority_level as 'Standard' | 'Urgent' | 'VIP' | undefined,
+  };
+}
+
+export async function getPatients() {
+  const rows = await sql`SELECT * FROM patients ORDER BY check_in_time ASC`;
+  return rows.map(rowToPatient);
+}
+
+export async function findPatient(id: string) {
+  const rows = await sql`SELECT * FROM patients WHERE id = ${id}`;
+  return rows.length > 0 ? rowToPatient(rows[0]) : undefined;
+}
+
+export async function createPatient(data: {
+  id: string; name: string; age: number; gender: string; symptoms: string;
+  triagePriority: Priority; triageScore: number; recommendedDepartment: Department;
+  status: string; estimatedWaitMinutes: number;
+  aiAnalysis: { priorityExplanation: string; clinicalPrecaution: string; suggestedVitalsToMeasure: string[] } | null;
+  mobile?: string; service?: string; priorityLevel?: string;
+}) {
+  await sql`
+    INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, status, estimated_wait_minutes, ai_explanation, ai_precaution, ai_vitals, mobile, service, priority_level)
+    VALUES (${data.id}, ${data.name}, ${data.age}, ${data.gender}, ${data.symptoms}, ${data.triagePriority}, ${data.triageScore}, ${data.recommendedDepartment}, ${data.status}, ${data.estimatedWaitMinutes}, ${data.aiAnalysis?.priorityExplanation || ''}, ${data.aiAnalysis?.clinicalPrecaution || ''}, ${JSON.stringify(data.aiAnalysis?.suggestedVitalsToMeasure || [])}, ${data.mobile || ''}, ${data.service || 'General Medicine'}, ${data.priorityLevel || 'Standard'})
+  `;
+}
+
+export async function updatePatient(id: string, updates: Record<string, unknown>) {
+  const fieldMap: Record<string, string> = {
+    status: "status",
+    assignedRoom: "assigned_room",
+    calledTime: "called_time",
+    completedTime: "completed_time",
+    estimatedWaitMinutes: "estimated_wait_minutes",
+    triagePriority: "triage_priority",
+    triageScore: "triage_score",
+    recommendedDepartment: "recommended_department",
+    priorityLevel: "priority_level",
+    symptoms: "symptoms",
+    aiExplanation: "ai_explanation",
+    aiPrecaution: "ai_precaution",
+    aiVitals: "ai_vitals",
+  };
+
+  const entries = Object.entries(updates).filter(([key, val]) => val !== undefined && fieldMap[key]);
+  if (entries.length === 0) return;
+
+  let setClause = "";
+  const values: unknown[] = [];
+  let idx = 1;
+
+  for (const [key, val] of entries) {
+    if (idx > 1) setClause += ", ";
+    setClause += `${fieldMap[key]} = $${idx}`;
+    values.push(val);
+    idx++;
   }
-];
 
-let nextPatientNumber = 8;
-
-const SEED_PATIENTS: Patient[] = JSON.parse(JSON.stringify(patients));
-
-export function getPatients(): Patient[] {
-  return patients;
+  values.push(id);
+  await pool.query(`UPDATE patients SET ${setClause} WHERE id = $${idx}`, values);
 }
 
-export function setPatients(p: Patient[]) {
-  patients = p;
+export async function getNextPatientNumber(): Promise<number> {
+  const result = await sql`
+    UPDATE patient_counter SET next_number = next_number + 1 WHERE id = 1 RETURNING next_number
+  `;
+  return result[0].next_number;
 }
 
-export function findPatient(id: string): Patient | undefined {
-  return patients.find(p => p.id === id);
-}
+export async function recalculateWaitTimes() {
+  const waiting = await sql`SELECT id, recommended_department, triage_priority, triage_score, priority_level FROM patients WHERE status = 'Waiting' ORDER BY check_in_time ASC`;
 
-export function getNextPatientNumber(): number {
-  return nextPatientNumber++;
-}
+  const priorityLevelMap: Record<string, number> = { 'VIP': 3, 'Urgent': 2, 'Standard': 1 };
+  const priorityMap: Record<string, number> = { 'Emergency': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
 
-export function resetStore() {
-  patients = JSON.parse(JSON.stringify(SEED_PATIENTS));
-  nextPatientNumber = 8;
-}
-
-export function recalculateWaitTimes() {
-  const waitingPatients = patients.filter(p => p.status === 'Waiting');
-
-  const priorityLevelMap: Record<string, number> = {
-    'VIP': 3,
-    'Urgent': 2,
-    'Standard': 1
-  };
-
-  const priorityMap: Record<Priority, number> = {
-    'Emergency': 4,
-    'High': 3,
-    'Medium': 2,
-    'Low': 1
-  };
-
-  waitingPatients.sort((a, b) => {
-    const levelA = priorityLevelMap[a.priorityLevel || 'Standard'] || 1;
-    const levelB = priorityLevelMap[b.priorityLevel || 'Standard'] || 1;
-    if (levelA !== levelB) return levelB - levelA;
-
-    const pA = priorityMap[a.triagePriority];
-    const pB = priorityMap[b.triagePriority];
-    if (pA !== pB) return pB - pA;
-    if (b.triageScore !== a.triageScore) return b.triageScore - a.triageScore;
-    return new Date(a.checkInTime).getTime() - new Date(b.checkInTime).getTime();
+  const sorted = waiting.sort((a, b) => {
+    const la = priorityLevelMap[(a.priority_level as string) || 'Standard'] || 1;
+    const lb = priorityLevelMap[(b.priority_level as string) || 'Standard'] || 1;
+    if (la !== lb) return lb - la;
+    const pa = priorityMap[a.triage_priority as string] || 1;
+    const pb = priorityMap[b.triage_priority as string] || 1;
+    if (pa !== pb) return pb - pa;
+    if (b.triage_score !== a.triage_score) return (b.triage_score as number) - (a.triage_score as number);
+    return 0;
   });
 
   const deptCounters: Record<string, number> = {};
+  for (const p of sorted) {
+    const dept = p.recommended_department as string;
+    deptCounters[dept] = (deptCounters[dept] || 0) + 1;
+    let wait = deptCounters[dept] * 12;
+    if (p.triage_priority === 'Emergency') wait = 2;
+    else if (p.triage_priority === 'High') wait = Math.max(5, wait - 10);
+    await sql`UPDATE patients SET estimated_wait_minutes = ${wait} WHERE id = ${p.id}`;
+  }
+}
 
-  patients.forEach(p => {
-    if (p.status === 'Waiting') {
-      const dept = p.recommendedDepartment;
-      deptCounters[dept] = (deptCounters[dept] || 0) + 1;
+export async function resetStore() {
+  await sql`DELETE FROM patients`;
+  await sql`UPDATE patient_counter SET next_number = 8 WHERE id = 1`;
 
-      let baseMinutes = deptCounters[dept] * 12;
-      if (p.triagePriority === 'Emergency') {
-        p.estimatedWaitMinutes = 2;
-      } else if (p.triagePriority === 'High') {
-        p.estimatedWaitMinutes = Math.max(5, baseMinutes - 10);
-      } else {
-        p.estimatedWaitMinutes = baseMinutes;
-      }
-    } else {
-      p.estimatedWaitMinutes = 0;
-    }
-  });
+  const seedPatients = [
+    { id: "P-1", name: "Ato Tesfaye Bekele", age: 58, gender: "Male", symptoms: "Crushing chest pain radiating to left arm, shortness of breath, and profuse sweating since morning", priority: "Emergency", score: 5, dept: "Cardiology", room: "Trauma Room 2", status: "Serving", wait: 0 },
+    { id: "P-2", name: "Sara Ahmed", age: 5, gender: "Female", symptoms: "High fever 39.5C for 2 days, coughing, refusing to eat, weak and lethargic", priority: "High", score: 4, dept: "Pediatrics", room: "Room 4", status: "Called", wait: 0 },
+    { id: "P-3", name: "W/ro Hirut Mengistu", age: 45, gender: "Female", symptoms: "Sudden severe headache, worst of my life, with nausea and vomiting, stiff neck, sensitivity to light", priority: "Emergency", score: 5, dept: "Neurology", room: "Trauma Room 1", status: "Serving", wait: 0 },
+    { id: "P-4", name: "Ato Daniel Girma", age: 32, gender: "Male", symptoms: "Road traffic accident, fractured right femur, severe pain, leg shortened and externally rotated", priority: "High", score: 4, dept: "Orthopedics", room: "Room 3", status: "Waiting", wait: 15 },
+    { id: "P-5", name: "W/ro Fatima Yusuf", age: 28, gender: "Female", symptoms: "8 months pregnant, severe headaches, blurred vision, swelling of face and hands, blood pressure 170/110", priority: "High", score: 4, dept: "Gynecology", room: "Room 5", status: "Waiting", wait: 12 },
+    { id: "P-6", name: "Mulu Girma", age: 41, gender: "Female", symptoms: "Persistent cough for 3 weeks, night sweats, weight loss, occasional blood in sputum", priority: "Medium", score: 3, dept: "General Medicine", room: null, status: "Waiting", wait: 35 },
+    { id: "P-7", name: "Ato Solomon Dinku", age: 72, gender: "Male", symptoms: "Prescription renewal for diabetes and hypertension, feeling fine, just routine check", priority: "Low", score: 1, dept: "General Medicine", room: "Room 1", status: "Completed", wait: 0 },
+  ];
+
+  for (const p of seedPatients) {
+    await sql`
+      INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, assigned_room, status, estimated_wait_minutes)
+      VALUES (${p.id}, ${p.name}, ${p.age}, ${p.gender}, ${p.symptoms}, ${p.priority}, ${p.score}, ${p.dept}, ${p.room}, ${p.status}, ${p.wait})
+    `;
+  }
 }
 
 export function fallbackTriage(name: string, age: number, gender: string, symptoms: string) {
@@ -232,7 +164,7 @@ export function fallbackTriage(name: string, age: number, gender: string, sympto
   let recommendedDepartment: Department = 'General Medicine';
   let priorityExplanation = "";
   let clinicalPrecaution = "";
-  let suggestedVitalsToMeasure = ["Blood Pressure", "Heart Rate", "Temperature"];
+  let suggestedVitalsToMeasure: string[] = ["Blood Pressure", "Heart Rate", "Temperature"];
 
   if (age <= 14 || sym.includes("child") || sym.includes("baby") || sym.includes("pediatric") || (sym.includes("fever") && age <= 16)) {
     recommendedDepartment = 'Pediatrics';
@@ -288,12 +220,5 @@ export function fallbackTriage(name: string, age: number, gender: string, sympto
     clinicalPrecaution = "Advise patient of estimated wait times. Instruct to report any new symptoms or deterioration instantly to reception.";
   }
 
-  return {
-    triagePriority,
-    triageScore,
-    recommendedDepartment,
-    priorityExplanation,
-    clinicalPrecaution,
-    suggestedVitalsToMeasure
-  };
+  return { triagePriority, triageScore, recommendedDepartment, priorityExplanation, clinicalPrecaution, suggestedVitalsToMeasure };
 }

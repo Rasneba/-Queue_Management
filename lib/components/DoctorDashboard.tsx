@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users, UserCheck, Stethoscope, Clock, ShieldAlert,
@@ -33,45 +33,64 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
   const [manualDepartment, setManualDepartment] = useState<Department>('General Medicine');
   const [showOverridePanel, setShowOverridePanel] = useState(false);
 
-  // Shift tracking states
-  const [activeShift, setActiveShift] = useState<ShiftLog | null>(() => {
-    const saved = localStorage.getItem('active_doctor_shift');
-    return saved ? JSON.parse(saved) : null;
-  });
-
-  const [shiftLogs, setShiftLogs] = useState<ShiftLog[]>(() => {
-    const saved = localStorage.getItem('doctor_shift_logs');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [activeShift, setActiveShift] = useState<ShiftLog | null>(null);
+  const [shiftLogs, setShiftLogs] = useState<ShiftLog[]>([]);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
 
-  // Doctor shift form fields
   const [docName, setDocName] = useState(() => localStorage.getItem('last_doctor_name') || "Dr. Alex Carter");
   const [docRoom, setDocRoom] = useState(AVAILABLE_ROOMS[0]);
   const [docDept, setDocDept] = useState<Department>("General Medicine");
-
-  // Show shift history panel
   const [showShiftHistory, setShowShiftHistory] = useState(false);
+
+  const fetchActiveSessions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/doctors/active');
+      if (!res.ok) return;
+      const sessions = await res.json();
+      const savedName = localStorage.getItem('last_doctor_name') || "Dr. Alex Carter";
+      const mySession = sessions.find((s: { doctorName: string }) => s.doctorName === savedName);
+      if (mySession) {
+        setActiveShift({
+          id: mySession.id,
+          doctorName: mySession.doctorName,
+          room: mySession.room,
+          department: mySession.department,
+          startTime: mySession.startTime,
+          endTime: null,
+          durationMinutes: 0,
+          patientsTreated: mySession.patientsTreated || [],
+        });
+      } else {
+        setActiveShift(null);
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  const fetchShiftHistory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/doctors/history');
+      if (!res.ok) return;
+      setShiftLogs(await res.json());
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    fetchActiveSessions();
+    fetchShiftHistory();
+  }, [fetchActiveSessions, fetchShiftHistory]);
 
   useEffect(() => {
     if (!activeShift) {
       setElapsedSeconds(0);
       return;
     }
-
     const calculateElapsed = () => {
       const start = new Date(activeShift.startTime).getTime();
       const now = new Date().getTime();
       return Math.max(0, Math.floor((now - start) / 1000));
     };
-
     setElapsedSeconds(calculateElapsed());
-
-    const interval = setInterval(() => {
-      setElapsedSeconds(calculateElapsed());
-    }, 1000);
-
+    const interval = setInterval(() => setElapsedSeconds(calculateElapsed()), 1000);
     return () => clearInterval(interval);
   }, [activeShift]);
 
@@ -82,51 +101,45 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const handleStartShift = () => {
+  const handleStartShift = async () => {
     if (!docName.trim()) return;
     localStorage.setItem('last_doctor_name', docName.trim());
-
-    const newShift: ShiftLog = {
-      id: `shift_${Date.now()}`,
-      doctorName: docName.trim(),
-      room: docRoom,
-      department: docDept,
-      startTime: new Date().toISOString(),
-      endTime: null,
-      durationMinutes: 0,
-      patientsTreated: []
-    };
-
-    setActiveShift(newShift);
-    localStorage.setItem('active_doctor_shift', JSON.stringify(newShift));
+    try {
+      const res = await fetch('/api/doctors/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doctorName: docName.trim(), room: docRoom, department: docDept }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setActiveShift({
+          id: data.id,
+          doctorName: data.doctorName,
+          room: data.room,
+          department: data.department,
+          startTime: new Date().toISOString(),
+          endTime: null,
+          durationMinutes: 0,
+          patientsTreated: [],
+        });
+      }
+    } catch (err) {
+      console.error("Failed to start shift:", err);
+    }
   };
 
-  const handleEndShift = () => {
+  const handleEndShift = async () => {
     if (!activeShift) return;
-
-    const endTimeISO = new Date().toISOString();
-    const startTimeMs = new Date(activeShift.startTime).getTime();
-    const endTimeMs = new Date(endTimeISO).getTime();
-    const durationMin = Math.round((endTimeMs - startTimeMs) / 60000);
-
-    const completedShift: ShiftLog = {
-      ...activeShift,
-      endTime: endTimeISO,
-      durationMinutes: Math.max(1, durationMin)
-    };
-
-    const updatedLogs = [completedShift, ...shiftLogs];
-    setShiftLogs(updatedLogs);
-    localStorage.setItem('doctor_shift_logs', JSON.stringify(updatedLogs));
-
-    setActiveShift(null);
-    localStorage.removeItem('active_doctor_shift');
-  };
-
-  const handleClearHistory = () => {
-    if (window.confirm("Are you sure you want to clear all shift logs?")) {
-      setShiftLogs([]);
-      localStorage.removeItem('doctor_shift_logs');
+    try {
+      await fetch('/api/doctors/end', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: activeShift.id }),
+      });
+      setActiveShift(null);
+      fetchShiftHistory();
+    } catch (err) {
+      console.error("Failed to end shift:", err);
     }
   };
 
@@ -149,14 +162,11 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     setAudioEnabled(prev => {
       const next = !prev;
       localStorage.setItem('doctor_audio_alert_enabled', String(next));
-      if (next) {
-        playPleasantChime();
-      }
+      if (next) playPleasantChime();
       return next;
     });
   };
 
-  // Filter patients based on tab, search term, and department
   const filteredPatients = patients.filter(patient => {
     const matchesTab = patient.status === activeTab;
     const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -175,17 +185,13 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, room: selectedRoom })
       });
-      if (audioEnabled) {
-        playPleasantChime();
-      }
+      if (audioEnabled) playPleasantChime();
       if (ttsEnabled) {
         const patient = patients.find(p => p.id === id);
         const dept = patient?.recommendedDepartment;
         const roomNum = selectedRoom.replace(/[^0-9]/g, '') || '1';
         const delay = audioEnabled ? 1200 : 300;
-        setTimeout(() => {
-          speakTicket(id, roomNum, { lang: ttsLang, department: dept });
-        }, delay);
+        setTimeout(() => speakTicket(id, roomNum, { lang: ttsLang, department: dept }), delay);
       }
       onUpdatePatients();
     } catch (err) {
@@ -220,16 +226,18 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
         body: JSON.stringify({ id })
       });
 
-      // If there is an active shift, add this patient to the shift's treated list
       if (activeShift) {
+        await fetch('/api/doctors/update-patients-treated', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId: activeShift.id, patientId: id }),
+        });
         setActiveShift(prev => {
           if (!prev) return null;
           const updatedTreated = prev.patientsTreated.includes(id)
             ? prev.patientsTreated
             : [...prev.patientsTreated, id];
-          const newShift = { ...prev, patientsTreated: updatedTreated };
-          localStorage.setItem('active_doctor_shift', JSON.stringify(newShift));
-          return newShift;
+          return { ...prev, patientsTreated: updatedTreated };
         });
       }
 
@@ -279,7 +287,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     }
   };
 
-  // Quick stats
   const waitingCount = patients.filter(p => p.status === 'Waiting').length;
   const calledCount = patients.filter(p => p.status === 'Called').length;
   const servingCount = patients.filter(p => p.status === 'Serving').length;
@@ -300,7 +307,7 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowShiftHistory(!showShiftHistory)}
+                  onClick={() => { setShowShiftHistory(!showShiftHistory); if (!showShiftHistory) fetchShiftHistory(); }}
                   className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 uppercase tracking-wide transition-colors"
                 >
                   <History className="w-3.5 h-3.5" />
@@ -392,7 +399,7 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowShiftHistory(!showShiftHistory)}
+                    onClick={() => { setShowShiftHistory(!showShiftHistory); if (!showShiftHistory) fetchShiftHistory(); }}
                     className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 uppercase tracking-wide transition-colors py-1 px-2.5 bg-slate-50 hover:bg-slate-100 rounded-lg"
                   >
                     <History className="w-3.5 h-3.5" />
@@ -428,7 +435,7 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                   </div>
                   <div>
                     <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Assigned Duty</span>
-                    <span className="text-xs font-bold text-slate-800 block">{activeShift.room} • {activeShift.department}</span>
+                    <span className="text-xs font-bold text-slate-800 block">{activeShift.room} &bull; {activeShift.department}</span>
                   </div>
                 </div>
 
@@ -443,7 +450,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                 </div>
               </div>
 
-              {/* Real-time statistics within the active shift */}
               <div className="flex items-center justify-between px-1 text-xs">
                 <div className="flex items-center gap-2">
                   <span className="text-slate-400 font-medium">Patients treated this shift:</span>
@@ -468,15 +474,14 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                 {shiftLogs.length > 0 && (
                   <button
                     type="button"
-                    onClick={handleClearHistory}
-                    className="flex items-center gap-1 text-[10px] text-rose-600 hover:underline uppercase tracking-wider font-semibold cursor-pointer"
+                    onClick={fetchShiftHistory}
+                    className="flex items-center gap-1 text-[10px] text-blue-600 hover:underline uppercase tracking-wider font-semibold cursor-pointer"
                   >
-                    <Trash2 className="w-3 h-3" /> Clear History
+                    <RefreshCw className="w-3 h-3" /> Refresh
                   </button>
                 )}
               </div>
 
-              {/* Daily totals calculation */}
               {shiftLogs.length > 0 ? (
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-2.5 bg-blue-50/30 p-3 rounded-xl border border-blue-100/50 text-center">
@@ -499,14 +504,13 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                     </div>
                   </div>
 
-                  {/* List of past shifts */}
                   <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
                     {shiftLogs.map((log) => (
                       <div key={log.id} className="p-3 border border-slate-100 rounded-xl hover:bg-slate-50 transition-all text-xs space-y-1.5">
                         <div className="flex justify-between items-start">
                           <div>
                             <span className="font-bold text-slate-800">{log.doctorName}</span>
-                            <span className="text-slate-400 text-[10px] ml-1.5">({log.room} • {log.department})</span>
+                            <span className="text-slate-400 text-[10px] ml-1.5">({log.room} &bull; {log.department})</span>
                           </div>
                           <span className="text-[10px] font-mono text-slate-500 bg-slate-100 py-0.5 px-2 rounded-md font-semibold">
                             {log.durationMinutes} min shift
@@ -643,7 +647,7 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
               }`}
               title="Toggle Amharic voice announcement when calling patients"
             >
-              🗣️ Voice: {ttsEnabled ? 'ON' : 'OFF'}
+              Voice: {ttsEnabled ? 'ON' : 'OFF'}
             </button>
 
             {ttsEnabled && (
@@ -656,9 +660,9 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                   localStorage.setItem('doctor_tts_lang', lang);
                 }}
               >
-                <option value="am">🗣️ Amharic</option>
-                <option value="om">🗣️ Afaan Oromoo</option>
-                <option value="en">🗣️ English</option>
+                <option value="am">Amharic</option>
+                <option value="om">Afaan Oromoo</option>
+                <option value="en">English</option>
               </select>
             )}
 
@@ -716,7 +720,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                   }`}
                 >
                   <div className="flex items-center gap-4">
-                    {/* Urgency indicator bullet */}
                     <div className={`w-3 h-3 rounded-full shrink-0 ${
                       patient.triagePriority === 'Emergency' ? 'bg-rose-500 animate-pulse' :
                       patient.triagePriority === 'High' ? 'bg-amber-500' :
@@ -766,7 +769,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
       <div className="lg:col-span-5 bg-white border border-slate-100 rounded-[24px] shadow-[0_15px_35px_rgba(0,0,0,0.02)] overflow-hidden sticky top-6">
         {selectedPatient ? (
           <div>
-            {/* Header section with colors dependent on priority */}
             <div className={`p-6 text-white ${
               selectedPatient.triagePriority === 'Emergency' ? 'bg-rose-500' :
               selectedPatient.triagePriority === 'High' ? 'bg-amber-500' :
@@ -797,17 +799,14 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
               </div>
             </div>
 
-            {/* Content section */}
             <div className="p-6 space-y-5 text-xs">
-              {/* Symptoms entered by patient */}
               <div>
                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Stated Symptoms</span>
                 <p className="bg-slate-50 p-4 rounded-2xl text-slate-700 leading-relaxed italic border border-slate-100 font-sans font-medium text-xs">
-                  "{selectedPatient.symptoms}"
+                  &quot;{selectedPatient.symptoms}&quot;
                 </p>
               </div>
 
-              {/* Clinical Insights */}
               <div className="border border-blue-100 bg-blue-50/10 rounded-2xl p-5 space-y-4">
                 <div className="flex items-center gap-1.5 text-blue-800 font-bold border-b border-blue-100/60 pb-2">
                   <Stethoscope className="w-4 h-4 text-blue-600" />
@@ -840,7 +839,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                 )}
               </div>
 
-              {/* Patient Flow Controls */}
               <div className="border-t border-slate-100 pt-5 space-y-4">
                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Queue Flow Controls</span>
 
@@ -917,7 +915,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                 )}
               </div>
 
-              {/* Triage Override Panel */}
               <div className="border-t border-slate-100 pt-4">
                 {showOverridePanel ? (
                   <div className="bg-slate-50 p-4 rounded-2xl border border-slate-150 space-y-3.5">

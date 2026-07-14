@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findPatient, recalculateWaitTimes, fallbackTriage } from "@/lib/store";
+import { findPatient, updatePatient, recalculateWaitTimes, fallbackTriage } from "@/lib/store";
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,25 +8,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing required parameters: id, symptoms" }, { status: 400 });
     }
 
-    const patient = findPatient(id);
+    const patient = await findPatient(id);
     if (!patient) {
       return NextResponse.json({ error: "Patient not found" }, { status: 404 });
     }
 
     const triageResult = fallbackTriage(patient.name, patient.age, patient.gender, symptoms);
 
-    patient.symptoms = symptoms;
-    patient.triagePriority = triageResult.triagePriority;
-    patient.triageScore = triageResult.triageScore;
-    patient.recommendedDepartment = triageResult.recommendedDepartment;
-    patient.aiAnalysis = {
-      priorityExplanation: triageResult.priorityExplanation,
-      clinicalPrecaution: triageResult.clinicalPrecaution,
-      suggestedVitalsToMeasure: triageResult.suggestedVitalsToMeasure
-    };
+    await updatePatient(id, {
+      symptoms,
+      triagePriority: triageResult.triagePriority,
+      triageScore: triageResult.triageScore,
+      recommendedDepartment: triageResult.recommendedDepartment,
+      aiExplanation: triageResult.priorityExplanation,
+      aiPrecaution: triageResult.clinicalPrecaution,
+      aiVitals: JSON.stringify(triageResult.suggestedVitalsToMeasure),
+    });
 
-    recalculateWaitTimes();
-    return NextResponse.json(patient);
+    await recalculateWaitTimes();
+    const updated = await findPatient(id);
+    return NextResponse.json(updated);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "An error occurred during triage";
     console.error("Triage-existing error:", err);
