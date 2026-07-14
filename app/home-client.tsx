@@ -92,7 +92,7 @@ export default function HomeClient() {
 
   useEffect(() => {
     fetchPatients();
-    const interval = setInterval(fetchPatients, 6000);
+    const interval = setInterval(fetchPatients, 10000);
     return () => clearInterval(interval);
   }, [fetchPatients]);
 
@@ -235,34 +235,35 @@ export default function HomeClient() {
               </button>
             </nav>
 
-            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200/40">
-              <span className="text-slate-500 pl-1">
-                <Globe className="w-3.5 h-3.5 animate-spin-slow" />
-              </span>
-              <select
-                value={language}
-                onChange={(e) => {
-                  const newLang = e.target.value as Language;
-                  setLanguage(newLang);
-                  localStorage.setItem('app_language', newLang);
-                }}
-                className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-2 outline-none"
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200/40">
+                <span className="text-slate-500 pl-1">
+                  <Globe className="w-3.5 h-3.5 animate-spin-slow" />
+                </span>
+                <select
+                  value={language}
+                  onChange={(e) => {
+                    const newLang = e.target.value as Language;
+                    setLanguage(newLang);
+                    localStorage.setItem('app_language', newLang);
+                  }}
+                  className="bg-transparent border-none text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-2 outline-none"
+                >
+                  <option value="en">English</option>
+                  <option value="am">Amharic</option>
+                  <option value="om">Afaan Oromoo</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDarkMode(!darkMode)}
+                className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-xl border border-slate-200/40 bg-slate-100 hover:bg-slate-200 transition-all text-xs font-bold text-slate-600 cursor-pointer"
+                title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
               >
-                <option value="en">English</option>
-                <option value="am">Amharic</option>
-                <option value="om">Afaan Oromoo</option>
-              </select>
+                {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-slate-500" />}
+                <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setDarkMode(!darkMode)}
-              className="flex items-center gap-1.5 py-1.5 px-3 rounded-xl border border-slate-200/40 bg-slate-100 hover:bg-slate-200 transition-all text-xs font-bold text-slate-600 cursor-pointer"
-              title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-            >
-              {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-500" /> : <Moon className="w-3.5 h-3.5 text-slate-500" />}
-              <span className="hidden sm:inline">{darkMode ? 'Light' : 'Dark'}</span>
-            </button>
 
             <div className="hidden md:flex items-center gap-5 text-right">
               <div className="h-10 w-[1px] bg-slate-200"></div>

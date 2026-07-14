@@ -1,15 +1,6 @@
 import { Priority, Department } from "./types";
 import sql from "./db";
 
-let _pool: { query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }> } | null = null;
-async function getPool() {
-  if (!_pool) {
-    const { Pool } = await import("@neondatabase/serverless");
-    _pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  }
-  return _pool;
-}
-
 function rowToPatient(row: Record<string, unknown>): {
   id: string; name: string; age: number; gender: string; symptoms: string;
   triagePriority: Priority; triageScore: number; recommendedDepartment: Department;
@@ -71,41 +62,39 @@ export async function createPatient(data: {
   `;
 }
 
-export async function updatePatient(id: string, updates: Record<string, unknown>) {
-  const fieldMap: Record<string, string> = {
-    status: "status",
-    assignedRoom: "assigned_room",
-    calledTime: "called_time",
-    completedTime: "completed_time",
-    estimatedWaitMinutes: "estimated_wait_minutes",
-    triagePriority: "triage_priority",
-    triageScore: "triage_score",
-    recommendedDepartment: "recommended_department",
-    priorityLevel: "priority_level",
-    symptoms: "symptoms",
-    aiExplanation: "ai_explanation",
-    aiPrecaution: "ai_precaution",
-    aiVitals: "ai_vitals",
-  };
+const FIELD_MAP: Record<string, string> = {
+  status: "status",
+  assignedRoom: "assigned_room",
+  calledTime: "called_time",
+  completedTime: "completed_time",
+  estimatedWaitMinutes: "estimated_wait_minutes",
+  triagePriority: "triage_priority",
+  triageScore: "triage_score",
+  recommendedDepartment: "recommended_department",
+  priorityLevel: "priority_level",
+  symptoms: "symptoms",
+  aiExplanation: "ai_explanation",
+  aiPrecaution: "ai_precaution",
+  aiVitals: "ai_vitals",
+};
 
-  const entries = Object.entries(updates).filter(([key, val]) => val !== undefined && fieldMap[key]);
+export async function updatePatient(id: string, updates: Record<string, unknown>) {
+  const entries = Object.entries(updates).filter(([key, val]) => val !== undefined && FIELD_MAP[key]);
   if (entries.length === 0) return;
 
-  const pool = await getPool();
-
-  let setClause = "";
-  const values: unknown[] = [];
-  let idx = 1;
-
-  for (const [key, val] of entries) {
-    if (idx > 1) setClause += ", ";
-    setClause += `${fieldMap[key]} = $${idx}`;
-    values.push(val);
-    idx++;
-  }
-
+  const setClauses = entries.map(([key], i) => `${FIELD_MAP[key]} = $${i + 1}`);
+  const values = entries.map(([, val]) => val);
   values.push(id);
-  await pool.query(`UPDATE patients SET ${setClause} WHERE id = $${idx}`, values);
+
+  const query = `UPDATE patients SET ${setClauses.join(', ')} WHERE id = $${entries.length + 1}`;
+
+  const { Pool } = await import("@neondatabase/serverless");
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  try {
+    await pool.query(query, values);
+  } finally {
+    await pool.end();
+  }
 }
 
 export async function getNextPatientNumber(): Promise<number> {

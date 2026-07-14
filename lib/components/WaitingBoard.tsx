@@ -144,7 +144,7 @@ export default function WaitingBoard({ patients, language = 'en', isOffline = fa
             onClick={() => {
               setAudioEnabled(!audioEnabled);
               if (!audioEnabled) {
-                speakText(language === 'am' ? "የድምፅ ማስታወቂያ በርቷል" : language === 'om' ? "Sagaleen hojjachaa jira" : "Voice alerts enabled", language as 'am' | 'en' | 'om');
+                speakText("የድምፅ ማስታወቂያ በርቷል", "Voice alerts enabled");
                 autoSpokenRef.current = null;
               } else {
                 stopSpeech();

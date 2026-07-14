@@ -19,6 +19,5 @@ export async function POST(request: NextRequest) {
   });
 
   await recalculateWaitTimes();
-  const updated = await findPatient(id);
-  return NextResponse.json(updated);
+  return NextResponse.json({ ok: true });
 }

@@ -26,8 +26,7 @@ export async function POST(request: NextRequest) {
     });
 
     await recalculateWaitTimes();
-    const updated = await findPatient(id);
-    return NextResponse.json(updated);
+    return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "An error occurred during triage";
     console.error("Triage-existing error:", err);

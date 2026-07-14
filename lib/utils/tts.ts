@@ -105,27 +105,50 @@ export async function speakTicket(ticketId: string, roomNumber: string, options:
   }
 }
 
-export async function speakText(text: string, lang: Lang = "am"): Promise<void> {
+export async function speakText(textAmharic: string, textEnglish: string): Promise<void> {
   const serverUp = await isTTSServerAvailable();
+
   if (serverUp) {
-    const res = await fetch(`${TTS_SERVER_URL}/speak`, {
+    await speakQueueViaServer("speak", "", "am");
+    const resAm = await fetch(`${TTS_SERVER_URL}/speak`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, lang, rate: "-10%", pitch: "+0Hz" }),
+      body: JSON.stringify({ text: textAmharic, lang: "am", rate: "-10%", pitch: "+0Hz" }),
     });
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    return new Promise((resolve) => {
-      const audio = new Audio(url);
-      audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-      audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-      if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
-      currentAudio = audio;
-      audio.play().catch(() => resolve());
+    if (resAm.ok) {
+      const blob = await resAm.blob();
+      const url = URL.createObjectURL(blob);
+      await new Promise<void>((resolve) => {
+        const audio = new Audio(url);
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
+        currentAudio = audio;
+        audio.play().catch(() => resolve());
+      });
+    }
+    await new Promise(r => setTimeout(r, 400));
+    const resEn = await fetch(`${TTS_SERVER_URL}/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: textEnglish, lang: "en", rate: "-10%", pitch: "+0Hz" }),
     });
+    if (resEn.ok) {
+      const blob = await resEn.blob();
+      const url = URL.createObjectURL(blob);
+      await new Promise<void>((resolve) => {
+        const audio = new Audio(url);
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
+        if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
+        currentAudio = audio;
+        audio.play().catch(() => resolve());
+      });
+    }
   } else {
-    await speakViaBrowser(text, lang);
+    await speakViaBrowser(textAmharic, "am");
+    await new Promise(r => setTimeout(r, 300));
+    await speakViaBrowser(textEnglish, "en");
   }
 }
 

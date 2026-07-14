@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
-import { getPatients, recalculateWaitTimes } from "@/lib/store";
+import { getPatients } from "@/lib/store";
 import { Department, Priority } from "@/lib/types";
 
 export async function GET() {
-  await recalculateWaitTimes();
   const patients = await getPatients();
 
   const waiting = patients.filter(p => p.status === 'Waiting');
