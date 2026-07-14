@@ -1,0 +1,7 @@
+node_modules/
+.next/
+tts-server/__pycache__/
+tts-server/*.pyc
+.env
+.env.local
+.env.production
