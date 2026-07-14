@@ -8,11 +8,11 @@ import {
   AlertCircle, RefreshCw, PlusCircle, UserCheck, Ticket, Globe
 } from 'lucide-react';
 import { Patient } from '@/lib/types';
-import SelfCheckInView from '@/lib/components/SelfCheckInView';
-import PatientStatusModal from '@/lib/components/PatientStatusModal';
 import { Language, t } from '@/lib/utils/translations';
 import { preloadVoices } from '@/lib/utils/tts';
 
+const SelfCheckInView = dynamic(() => import('@/lib/components/SelfCheckInView'), { ssr: false });
+const PatientStatusModal = dynamic(() => import('@/lib/components/PatientStatusModal'), { ssr: false });
 const KioskView = dynamic(() => import('@/lib/components/KioskView'), { ssr: false });
 const WaitingBoard = dynamic(() => import('@/lib/components/WaitingBoard'), { ssr: false });
 const DoctorDashboard = dynamic(() => import('@/lib/components/DoctorDashboard'), { ssr: false });
@@ -72,7 +72,10 @@ export default function HomeClient() {
       const res = await fetch('/api/patients');
       if (!res.ok) throw new Error('Failed to retrieve queue information');
       const data = await res.json();
-      setPatients(data);
+      setPatients(prev => {
+        if (prev.length === data.length && JSON.stringify(prev) === JSON.stringify(data)) return prev;
+        return data;
+      });
       setError(null);
     } catch {
       setError('Connection lost. Re-establishing server sync...');

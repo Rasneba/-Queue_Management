@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users, UserCheck, Clock, ShieldAlert, Play, CheckCircle,
@@ -11,7 +11,6 @@ import { Patient, Priority, Department } from '@/lib/types';
 import { playPleasantChime } from '@/lib/utils/audio';
 import { speakTicket, stopSpeech, isSpeaking, preloadVoices } from '@/lib/utils/tts';
 import { Language, t } from '@/lib/utils/translations';
-import { fallbackTriage } from '@/lib/store';
 
 interface ReceptionConsoleProps {
   patients: Patient[];
@@ -75,6 +74,29 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
   const [showTriageForm, setShowTriageForm] = useState(false);
   const [triageSymptoms, setTriageSymptoms] = useState("");
   const [showDoctorAssign, setShowDoctorAssign] = useState(false);
+  const lastAutoCalledRef = useRef<string | null>(null);
+
+  const handleCallPatient = useCallback(async (patientId: string) => {
+    setLoadingAction(true);
+    try {
+      const res = await fetch('/api/patients/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: patientId, room: counterName })
+      });
+      if (res.ok) {
+        playPleasantChime();
+        if (audioEnabled) {
+          setTimeout(() => speakTicket(patientId, counterName, { lang: ttsLang }), 1200);
+        }
+        onUpdatePatients();
+      }
+    } catch (err) {
+      console.error("Error calling patient:", err);
+    } finally {
+      setLoadingAction(false);
+    }
+  }, [counterName, audioEnabled, ttsLang, onUpdatePatients]);
 
   const fetchActiveDoctors = useCallback(async () => {
     try {
@@ -84,21 +106,25 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
   }, []);
 
   useEffect(() => {
+    if (!counterName) return;
     fetchActiveDoctors();
-    const interval = setInterval(fetchActiveDoctors, 6000);
+    const interval = setInterval(fetchActiveDoctors, 15000);
     return () => clearInterval(interval);
-  }, [fetchActiveDoctors]);
+  }, [fetchActiveDoctors, counterName]);
 
   useEffect(() => {
     if (!counterName || currentPatient) return;
     if (waitingPatients.length === 0) return;
 
-    const timer = setTimeout(async () => {
-      const nextUp = waitingPatients[0];
-      await handleCallPatient(nextUp.id);
+    const nextId = waitingPatients[0].id;
+    if (lastAutoCalledRef.current === nextId) return;
+    lastAutoCalledRef.current = nextId;
+
+    const timer = setTimeout(() => {
+      handleCallPatient(nextId);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [patients, counterName, currentPatient]);
+  }, [patients, counterName, currentPatient, waitingPatients, handleCallPatient]);
 
   const handleLogin = (name: string) => {
     const finalName = name.trim();
@@ -125,28 +151,6 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
     localStorage.removeItem('reception_counter_name');
     setPassword("");
     setPasswordError("");
-  };
-
-  const handleCallPatient = async (patientId: string) => {
-    setLoadingAction(true);
-    try {
-      const res = await fetch('/api/patients/call', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: patientId, room: counterName })
-      });
-      if (res.ok) {
-        playPleasantChime();
-        if (audioEnabled) {
-          setTimeout(() => speakTicket(patientId, counterName, { lang: ttsLang }), 1200);
-        }
-        onUpdatePatients();
-      }
-    } catch (err) {
-      console.error("Error calling patient:", err);
-    } finally {
-      setLoadingAction(false);
-    }
   };
 
   const handleCompletePatient = async (patientId: string) => {
@@ -259,7 +263,6 @@ export default function ReceptionConsole({ patients, onUpdatePatients, language 
       if (res.ok) {
         setShowDoctorAssign(false);
         onUpdatePatients();
-        setTimeout(() => handleCompletePatient(currentPatient.id), 500);
       }
     } catch (err) {
       console.error("Assign doctor error:", err);

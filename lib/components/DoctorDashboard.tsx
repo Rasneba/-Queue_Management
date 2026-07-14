@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users, UserCheck, Stethoscope, Clock, ShieldAlert,
@@ -101,15 +101,29 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
+  const [shiftError, setShiftError] = useState<string | null>(null);
+
   const handleStartShift = async () => {
     if (!docName.trim()) return;
+    setShiftError(null);
+    setLoadingAction(true);
     localStorage.setItem('last_doctor_name', docName.trim());
     try {
-      const res = await fetch('/api/doctors/start', {
+      let res = await fetch('/api/doctors/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ doctorName: docName.trim(), room: docRoom, department: docDept }),
       });
+
+      if (!res.ok) {
+        await fetch('/api/init');
+        res = await fetch('/api/doctors/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ doctorName: docName.trim(), room: docRoom, department: docDept }),
+        });
+      }
+
       if (res.ok) {
         const data = await res.json();
         setActiveShift({
@@ -122,9 +136,16 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
           durationMinutes: 0,
           patientsTreated: [],
         });
+        fetchShiftHistory();
+      } else {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        setShiftError(err.error || "Failed to start shift. Please try again.");
       }
     } catch (err) {
       console.error("Failed to start shift:", err);
+      setShiftError("Network error. Check your connection and try again.");
+    } finally {
+      setLoadingAction(false);
     }
   };
 
@@ -167,13 +188,14 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     });
   };
 
-  const filteredPatients = patients.filter(patient => {
+  const searchLower = searchTerm.toLowerCase();
+  const filteredPatients = useMemo(() => patients.filter(patient => {
     const matchesTab = patient.status === activeTab;
-    const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          patient.id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = patient.name.toLowerCase().includes(searchLower) || 
+                          patient.id.toLowerCase().includes(searchLower);
     const matchesDept = departmentFilter === "All" || patient.recommendedDepartment === departmentFilter;
     return matchesTab && matchesSearch && matchesDept;
-  });
+  }), [patients, activeTab, searchLower, departmentFilter]);
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId) || filteredPatients[0];
 
@@ -287,10 +309,16 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     }
   };
 
-  const waitingCount = patients.filter(p => p.status === 'Waiting').length;
-  const calledCount = patients.filter(p => p.status === 'Called').length;
-  const servingCount = patients.filter(p => p.status === 'Serving').length;
-  const completedCount = patients.filter(p => p.status === 'Completed').length;
+  const { waitingCount, calledCount, servingCount, completedCount } = useMemo(() => {
+    let waitingCount = 0, calledCount = 0, servingCount = 0, completedCount = 0;
+    for (const p of patients) {
+      if (p.status === 'Waiting') waitingCount++;
+      else if (p.status === 'Called') calledCount++;
+      else if (p.status === 'Serving') servingCount++;
+      else if (p.status === 'Completed') completedCount++;
+    }
+    return { waitingCount, calledCount, servingCount, completedCount };
+  }, [patients]);
 
   return (
     <div id="doctor-dashboard" className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -369,17 +397,22 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                   type="button"
                   id="start-shift-btn"
                   onClick={handleStartShift}
-                  disabled={!docName.trim()}
+                  disabled={!docName.trim() || loadingAction}
                   className={`flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all shadow-sm ${
-                    docName.trim()
+                    docName.trim() && !loadingAction
                       ? "bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md cursor-pointer"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
                 >
                   <Briefcase className="w-3.5 h-3.5" />
-                  Start Duty Shift
+                  {loadingAction ? 'Starting...' : 'Start Duty Shift'}
                 </button>
                </div>
+               {shiftError && (
+                 <div className="col-span-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold px-3 py-2 rounded-xl">
+                   {shiftError}
+                 </div>
+               )}
             </div>
             </div>
           ) : (

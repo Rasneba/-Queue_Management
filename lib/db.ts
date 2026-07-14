@@ -50,6 +50,18 @@ export async function initDB() {
     );
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS staff (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('Reception', 'Triage', 'Doctor')),
+      password TEXT NOT NULL,
+      department TEXT DEFAULT 'General Medicine',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      is_active BOOLEAN DEFAULT TRUE
+    );
+  `;
+
   const result = await sql`SELECT COUNT(*)::int AS cnt FROM patient_counter`;
   if (result[0].cnt === 0) {
     await sql`INSERT INTO patient_counter (id, next_number) VALUES (1, 8)`;
