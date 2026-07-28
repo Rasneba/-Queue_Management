@@ -8,11 +8,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Name and password are required" }, { status: 400 });
     }
 
-    let rows = await sql`SELECT id, name, role, department, desk FROM staff WHERE name = ${name} AND password = ${password} AND is_active = TRUE`;
+    let rows = await sql`SELECT id, name, role, department, desk FROM staff WHERE LOWER(name) = LOWER(${name}) AND password = ${password} AND is_active = TRUE`;
 
     if (rows.length === 0) {
-      await sql`INSERT INTO staff (id, name, role, password, department) VALUES ('staff_admin', 'Admin', 'Admin', 'admin123', 'General Medicine') ON CONFLICT (id) DO NOTHING`;
-      rows = await sql`SELECT id, name, role, department, desk FROM staff WHERE name = ${name} AND password = ${password} AND is_active = TRUE`;
+      await sql`INSERT INTO staff (id, name, role, password, department) VALUES ('staff_admin', 'Admin', 'Admin', 'admin123', 'General Medicine') ON CONFLICT (id) DO UPDATE SET password = 'admin123', role = 'Admin', is_active = TRUE`;
+      rows = await sql`SELECT id, name, role, department, desk FROM staff WHERE LOWER(name) = LOWER(${name}) AND password = ${password} AND is_active = TRUE`;
     }
 
     if (rows.length === 0) {

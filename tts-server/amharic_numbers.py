@@ -182,12 +182,40 @@ def build_queue_announcement(
 
     if lang == "am":
         dept_part = f"{dept_label_am} " if dept_label_am else ""
-        return f"እንግዳ ቁጥር {ticket_text} ወደ {dept_part}{counter_text} ይምጡ"
+        room_label = "ክፍል"
+        c = str(counter)
+        if c.lower().startswith("desk"):
+            room_label = "ዴስክ"
+        elif c.lower().startswith("trauma"):
+            room_label = "ትራውማ ክፍል"
+        elif c.lower().startswith("room"):
+            room_label = "ክፍል"
+        elif c.lower().startswith("pediatric"):
+            room_label = "የህጻናት ክፍል"
+        elif c.lower().startswith("cardiology"):
+            room_label = "የልብ ክፍል"
+        elif c.lower().startswith("orthopedic"):
+            room_label = "የአጥንት ክፍል"
+        return f"እንግዳ ቁጥር {ticket_text} ወደ {dept_part}{room_label} {counter_text} ይምጡ"
     if lang == "om":
         dept_part = f"{dept_label_om} " if dept_label_om else ""
         return f"Konii {ticket_text} gara {dept_part}{counter_text} keessaatti fudhamaa"
 
-    return f"Patient number {ticket_id}, please proceed to {counter}"
+    c = str(counter)
+    room_label_en = "reception"
+    if c.lower().startswith("desk"):
+        room_label_en = "desk"
+    elif c.lower().startswith("trauma"):
+        room_label_en = "trauma room"
+    elif c.lower().startswith("room"):
+        room_label_en = "room"
+    elif c.lower().startswith("pediatric"):
+        room_label_en = "pediatric suite"
+    elif c.lower().startswith("cardiology"):
+        room_label_en = "cardiology"
+    elif c.lower().startswith("orthopedic"):
+        room_label_en = "orthopedic room"
+    return f"Patient number {ticket_id}, please proceed to {room_label_en} {counter}"
 
 
 if __name__ == "__main__":

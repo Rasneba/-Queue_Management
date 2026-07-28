@@ -14,7 +14,7 @@ interface StaffMember {
 }
 
 const ROLES = ['Reception', 'Triage', 'Doctor'] as const;
-const DESKS = ['Desk 1', 'Desk 2', 'Desk 3', 'Desk 4', 'Desk 5', 'Desk 6'];
+const DESKS = ['Desk 1', 'Desk 2', 'Desk 3', 'Desk 4'];
 const CATEGORIES = ['General Practitioner', 'Specialist', 'Consultant', 'Surgeon', 'Resident', 'Registrar'];
 const DEPARTMENTS = [
   'General Medicine', 'Pediatrics', 'Cardiology', 'Orthopedics', 'Emergency',

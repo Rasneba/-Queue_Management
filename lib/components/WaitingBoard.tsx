@@ -256,7 +256,7 @@ function WaitingBoard({ patients, language = 'en', isOffline = false, onCallNext
                               {language === 'am' ? 'እባክዎ ወደዚህ ክፍል ይሂዱ' : language === 'om' ? 'Maaloo deemaa gara' : 'Please proceed to'}
                             </span>
                             <div className="px-10 py-4 bg-white rounded-2xl text-slate-900 text-4xl font-black shadow-xl shadow-white/10">
-                              {spotlightPatient.assignedRoom || (language === 'am' ? 'ወደ መቀበያ' : language === 'om' ? 'Deskii' : 'Reception Desk')}
+                              {spotlightPatient.assignedRoom || (language === 'am' ? 'ወደ ዴስክ' : language === 'om' ? 'Deskii' : 'Reception Desk')}
                             </div>
                           </div>
                         </div>

@@ -78,10 +78,7 @@ async function ensureMigrations() {
           }
         })(),
         (async () => {
-          const res = await pool.query("SELECT id FROM staff WHERE name = 'Admin' AND role = 'Admin' LIMIT 1");
-          if (res.rows.length === 0) {
-            await pool.query("INSERT INTO staff (id, name, role, password, department) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING", ['staff_admin', 'Admin', 'Admin', 'admin123', 'General Medicine']);
-          }
+          await pool.query("INSERT INTO staff (id, name, role, password, department) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET password = $4, role = $3, is_active = TRUE, department = $5", ['staff_admin', 'Admin', 'Admin', 'admin123', 'General Medicine']);
         })(),
       ]);
       await seedStaff();
@@ -269,6 +266,8 @@ const SEED_STAFF = [
   { id: "staff_doc_4", name: "Dr. Hana Lemma", role: "Doctor", password: "doctor123", department: "Orthopedics", category: "Surgeon" },
   { id: "staff_rec_1", name: "Rahel Tadesse", role: "Reception", password: "recept123", department: "General Medicine", desk: "Desk 1" },
   { id: "staff_rec_2", name: "Bereket Solomon", role: "Reception", password: "recept123", department: "General Medicine", desk: "Desk 2" },
+  { id: "staff_rec_3", name: "Hana Tesfaye", role: "Reception", password: "recept123", department: "General Medicine", desk: "Desk 3" },
+  { id: "staff_rec_4", name: "Dawit Mulu", role: "Reception", password: "recept123", department: "General Medicine", desk: "Desk 4" },
   { id: "staff_tri_1", name: "Senait Mulugeta", role: "Triage", password: "triage123", department: "Emergency", desk: null },
   { id: "staff_admin", name: "Admin", role: "Admin", password: "admin123", department: "General Medicine", desk: null },
 ];
@@ -278,7 +277,7 @@ export async function seedStaff() {
     await withRetry(() => sql`
       INSERT INTO staff (id, name, role, password, department, is_active, desk, category)
       VALUES (${s.id}, ${s.name}, ${s.role}, ${s.password}, ${s.department}, TRUE, ${s.desk ?? null}, ${s.category})
-      ON CONFLICT (id) DO NOTHING
+      ON CONFLICT (id) DO UPDATE SET name = ${s.name}, role = ${s.role}, password = ${s.password}, department = ${s.department}, is_active = TRUE, desk = ${s.desk ?? null}, category = ${s.category}
     `);
   }
 }

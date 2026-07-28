@@ -141,8 +141,9 @@ export async function speakTicket(ticketId: string, roomNumber: string, options:
   const deptAm = department ? getDeptAmharic(department) : "";
   const deptPart = deptAm ? `${deptAm} ` : "";
 
-  const amharicText = `እንግዳ ቁጥር ${ticketId}፣ ወደ ${deptPart}መቀበያ ቁጥር ${roomNumber} ይምጡ`;
-  const englishText = `Patient number ${ticketId}, please proceed to ${department ? department + " " : ""}counter number ${roomNumber}`;
+  const roomLabel = getRoomLabelAmharic(roomNumber);
+  const amharicText = `እንግዳ ቁጥር ${ticketId}፣ ወደ ${deptPart}${roomLabel} ${roomNumber} ይምጡ`;
+  const englishText = `Patient number ${ticketId}, please proceed to ${department ? department + " " : ""}${roomNumber}`;
 
   const localUp = await isLocalTTSServerAvailable();
 
@@ -207,6 +208,17 @@ export function getVoiceStatus(): { ready: boolean; count: number; amharic: bool
     amharic: voices.some(v => v.lang.startsWith("am")),
     languages: [...new Set(voices.map(v => v.lang))],
   };
+}
+
+function getRoomLabelAmharic(room: string): string {
+  if (!room) return "መምጫ ቦታ";
+  if (room.toLowerCase().startsWith("desk")) return "ዴስክ";
+  if (room.toLowerCase().startsWith("trauma")) return "ትራውማ ክፍል";
+  if (room.toLowerCase().startsWith("room")) return "ክፍል";
+  if (room.toLowerCase().startsWith("pediatric")) return "የህጻናት ክፍል";
+  if (room.toLowerCase().startsWith("cardiology")) return "የልብ ክፍል";
+  if (room.toLowerCase().startsWith("orthopedic")) return "የአጥንት ክፍል";
+  return "ክፍል";
 }
 
 function getDeptAmharic(dept: string): string {
