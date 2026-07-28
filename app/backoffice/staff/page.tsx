@@ -1,17 +1,21 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, Users, UserPlus, Stethoscope, AlertCircle, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, Users, UserPlus, Stethoscope, AlertCircle, CheckCircle, Pencil } from 'lucide-react';
 
 interface StaffMember {
   id: string;
   name: string;
   role: string;
   department: string;
+  desk: string | null;
+  category: string;
   createdAt: string;
   isActive: boolean;
 }
 
 const ROLES = ['Reception', 'Triage', 'Doctor'] as const;
+const DESKS = ['Desk 1', 'Desk 2', 'Desk 3', 'Desk 4', 'Desk 5', 'Desk 6'];
+const CATEGORIES = ['General Practitioner', 'Specialist', 'Consultant', 'Surgeon', 'Resident', 'Registrar'];
 const DEPARTMENTS = [
   'General Medicine', 'Pediatrics', 'Cardiology', 'Orthopedics', 'Emergency',
   'Neurology', 'Oncology', 'Gynecology', 'Ophthalmology', 'ENT', 'Dermatology'
@@ -31,10 +35,13 @@ export default function StaffManagement() {
   const [formRole, setFormRole] = useState<string>('Reception');
   const [formPassword, setFormPassword] = useState('');
   const [formDept, setFormDept] = useState('General Medicine');
+  const [formDesk, setFormDesk] = useState('Desk 1');
+  const [formCategory, setFormCategory] = useState('');
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [filterRole, setFilterRole] = useState<string>('All');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const fetchStaff = useCallback(async () => {
     try {
@@ -50,25 +57,40 @@ export default function StaffManagement() {
     e.preventDefault();
     setFormError('');
     setFormSuccess('');
-    if (!formName.trim() || !formPassword) {
+    if (!formName.trim() || (!editingId && !formPassword)) {
       setFormError('Name and password are required');
       return;
     }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/staff', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: formName.trim(), role: formRole, password: formPassword, department: formDept }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setFormError(data.error || 'Failed to add staff');
-        return;
+      if (editingId) {
+        const res = await fetch(`/api/staff/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: formName.trim(), role: formRole, password: formPassword, department: formDept, desk: formRole === 'Reception' ? formDesk : null, category: formRole === 'Doctor' ? formCategory : '' }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setFormError(data.error || 'Failed to update staff');
+          return;
+        }
+        setFormSuccess(`${formName.trim()} updated successfully`);
+      } else {
+        const res = await fetch('/api/staff', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: formName.trim(), role: formRole, password: formPassword, department: formDept, desk: formRole === 'Reception' ? formDesk : null, category: formRole === 'Doctor' ? formCategory : '' }),
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          setFormError(data.error || 'Failed to add staff');
+          return;
+        }
+        setFormSuccess(`${formName.trim()} registered as ${formRole}`);
       }
-      setFormSuccess(`${formName.trim()} registered as ${formRole}`);
       setFormName('');
       setFormPassword('');
+      setEditingId(null);
       setShowForm(false);
       fetchStaff();
     } catch {
@@ -76,6 +98,19 @@ export default function StaffManagement() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleEdit = (s: StaffMember) => {
+    setEditingId(s.id);
+    setFormName(s.name);
+    setFormRole(s.role);
+    setFormPassword('');
+    setFormDept(s.department);
+    setFormDesk(s.desk || 'Desk 1');
+    setFormCategory(s.category || '');
+    setShowForm(true);
+    setFormError('');
+    setFormSuccess('');
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -115,7 +150,7 @@ export default function StaffManagement() {
 
       {showForm && (
         <form onSubmit={handleAdd} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-          <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">New Staff Registration</h3>
+          <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">{editingId ? 'Edit Staff' : 'New Staff Registration'}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name</label>
@@ -143,10 +178,10 @@ export default function StaffManagement() {
               <input
                 type="password"
                 className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-                placeholder="Set login password"
+                placeholder={editingId ? "Leave blank to keep current" : "Set login password"}
                 value={formPassword}
                 onChange={(e) => setFormPassword(e.target.value)}
-                required
+                required={!editingId}
               />
             </div>
             <div>
@@ -159,6 +194,31 @@ export default function StaffManagement() {
                 {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+            {formRole === 'Reception' && (
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Assigned Desk</label>
+                <select
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                  value={formDesk}
+                  onChange={(e) => setFormDesk(e.target.value)}
+                >
+                  {DESKS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            )}
+            {formRole === 'Doctor' && (
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Doctor Category</label>
+                <select
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value)}
+                >
+                  <option value="">Select category</option>
+                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            )}
           </div>
 
           {formError && (
@@ -168,11 +228,11 @@ export default function StaffManagement() {
           )}
 
           <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-xs font-semibold border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 cursor-pointer">
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="px-4 py-2 text-xs font-semibold border border-slate-200 rounded-xl hover:bg-slate-50 text-slate-600 cursor-pointer">
               Cancel
             </button>
             <button type="submit" disabled={submitting} className="px-5 py-2 text-xs font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-700 cursor-pointer disabled:opacity-50">
-              {submitting ? 'Registering...' : 'Register'}
+              {submitting ? (editingId ? 'Saving...' : 'Registering...') : (editingId ? 'Save Changes' : 'Register')}
             </button>
           </div>
         </form>
@@ -213,6 +273,8 @@ export default function StaffManagement() {
                 <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Name</th>
                 <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Role</th>
                 <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Department</th>
+                <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Desk</th>
+                <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Category</th>
                 <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px]">Registered</th>
                 <th className="px-4 py-2.5 font-bold text-slate-500 uppercase tracking-wider text-[10px] text-right">Action</th>
               </tr>
@@ -227,17 +289,28 @@ export default function StaffManagement() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-600 font-medium">{s.department}</td>
+                  <td className="px-4 py-3 text-slate-600 font-medium">{s.desk || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600 font-medium">{s.category || '—'}</td>
                   <td className="px-4 py-3 text-slate-400 font-medium">
                     {new Date(s.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(s.id, s.name)}
-                      className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer p-1"
-                      title="Remove staff"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => handleEdit(s)}
+                        className="text-slate-400 hover:text-blue-600 transition-colors cursor-pointer p-1"
+                        title="Edit staff"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(s.id, s.name)}
+                        className="text-slate-400 hover:text-rose-600 transition-colors cursor-pointer p-1"
+                        title="Remove staff"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

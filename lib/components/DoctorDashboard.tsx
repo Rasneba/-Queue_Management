@@ -1,15 +1,13 @@
 'use client';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Users, UserCheck, Stethoscope, Clock, ShieldAlert,
   Search, Filter, Play, CheckCircle, Ban, ArrowRight,
   RefreshCw, Sliders, ChevronRight, HelpCircle, HeartHandshake, Info,
-  Volume2, VolumeX, User, Timer, Calendar, History, Trash2, Briefcase
+  User, Timer, Calendar, History, Trash2, Briefcase, AlertCircle
 } from 'lucide-react';
 import { Patient, Priority, Department, PatientStatus, ShiftLog } from '@/lib/types';
-import { playPleasantChime } from '@/lib/utils/audio';
-import { speakTicket, stopSpeech, isSpeaking, preloadVoices } from '@/lib/utils/tts';
 
 interface DoctorDashboardProps {
   patients: Patient[];
@@ -22,7 +20,7 @@ const AVAILABLE_ROOMS = [
   "Pediatric Suite A", "Cardiology Lab", "Orthopedic Room 1", "Trauma Room 1", "Trauma Room 2"
 ];
 
-export default function DoctorDashboard({ patients, onUpdatePatients, onResetDatabase }: DoctorDashboardProps) {
+function DoctorDashboard({ patients, onUpdatePatients, onResetDatabase }: DoctorDashboardProps) {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<PatientStatus>('Waiting');
   const [searchTerm, setSearchTerm] = useState("");
@@ -41,6 +39,15 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
   const [docRoom, setDocRoom] = useState(AVAILABLE_ROOMS[0]);
   const [docDept, setDocDept] = useState<Department>("General Medicine");
   const [showShiftHistory, setShowShiftHistory] = useState(false);
+  const [docCategory, setDocCategory] = useState('');
+
+  const [docLoginStep, setDocLoginStep] = useState<'list' | 'password'>('list');
+  const [doctorStaff, setDoctorStaff] = useState<{ id: string; name: string; department: string; category: string }[]>([]);
+  const [selectedDocStaff, setSelectedDocStaff] = useState<string>('');
+  const [docPassword, setDocPassword] = useState('');
+  const [docLoginError, setDocLoginError] = useState('');
+  const [docLoginLoading, setDocLoginLoading] = useState(false);
+  const [docLoggedIn, setDocLoggedIn] = useState(() => !!localStorage.getItem('last_doctor_name'));
 
   const fetchActiveSessions = useCallback(async () => {
     try {
@@ -77,6 +84,9 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
   useEffect(() => {
     fetchActiveSessions();
     fetchShiftHistory();
+    fetch('/api/staff').then(r => r.ok ? r.json() : []).then((all: any[]) => {
+      setDoctorStaff(all.filter((s: any) => s.role === 'Doctor' && s.isActive));
+    }).catch(() => {});
   }, [fetchActiveSessions, fetchShiftHistory]);
 
   useEffect(() => {
@@ -164,23 +174,33 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     }
   };
 
-  const [audioEnabled, setAudioEnabled] = useState(() => {
-    const saved = localStorage.getItem('doctor_audio_alert_enabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-
-  const [ttsEnabled, setTtsEnabled] = useState(() => {
-    const saved = localStorage.getItem('doctor_tts_enabled');
-    return saved !== null ? saved === 'true' : true;
-  });
-
-  const toggleAudio = () => {
-    setAudioEnabled(prev => {
-      const next = !prev;
-      localStorage.setItem('doctor_audio_alert_enabled', String(next));
-      if (next) playPleasantChime();
-      return next;
-    });
+  const handleDocLogin = async () => {
+    if (!selectedDocStaff || !docPassword.trim()) return;
+    setDocLoginError('');
+    setDocLoginLoading(true);
+    try {
+      const staff = doctorStaff.find(s => s.id === selectedDocStaff);
+      if (!staff) { setDocLoginError('Staff not found'); setDocLoginLoading(false); return; }
+      const res = await fetch('/api/staff/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: staff.name, password: docPassword }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDocLoginError(data.error || 'Invalid password');
+        return;
+      }
+      setDocName(staff.name);
+      setDocDept(staff.department as Department);
+      setDocCategory(staff.category || '');
+      localStorage.setItem('last_doctor_name', staff.name);
+      setDocLoggedIn(true);
+    } catch {
+      setDocLoginError('Connection error');
+    } finally {
+      setDocLoginLoading(false);
+    }
   };
 
   const searchLower = searchTerm.toLowerCase();
@@ -202,14 +222,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, room: selectedRoom })
       });
-      if (audioEnabled) playPleasantChime();
-      if (ttsEnabled) {
-        const patient = patients.find(p => p.id === id);
-        const dept = patient?.recommendedDepartment;
-        const roomNum = selectedRoom.replace(/[^0-9]/g, '') || '1';
-        const delay = audioEnabled ? 1200 : 300;
-        setTimeout(() => speakTicket(id, roomNum, { department: dept }), delay);
-      }
       onUpdatePatients();
     } catch (err) {
       console.error(err);
@@ -321,38 +333,123 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
       <div className="lg:col-span-7 space-y-5">
         {/* Shift Tracking Station */}
         <div className="bg-white p-5 rounded-[24px] border border-slate-100 shadow-sm space-y-4">
-          {!activeShift ? (
+          {!activeShift && !docLoggedIn ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                  <h4 className="text-sm font-extrabold text-slate-800 font-sans tracking-tight">Doctor Login</h4>
+                </div>
+              </div>
+
+              {docLoginStep === 'list' ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-500 font-medium">Select your name from the list:</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                    {doctorStaff.length === 0 && (
+                      <p className="text-xs text-slate-400 italic col-span-2">No doctors registered yet. Ask admin to register you first.</p>
+                    )}
+                    {doctorStaff.map(s => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => { setSelectedDocStaff(s.id); setDocLoginStep('password'); setDocLoginError(''); }}
+                        className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          selectedDocStaff === s.id
+                            ? 'border-emerald-500 bg-emerald-50 shadow-sm'
+                            : 'border-slate-100 hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
+                          <User className="w-4 h-4 text-emerald-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">{s.name}</p>
+                          <p className="text-[10px] text-slate-400">{s.category || s.department}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => { setDocLoginStep('list'); setDocPassword(''); setDocLoginError(''); }}
+                    className="flex items-center gap-1 text-[11px] font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                  >
+                    &larr; Back to list
+                  </button>
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
+                      <User className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-800">{doctorStaff.find(s => s.id === selectedDocStaff)?.name}</p>
+                      <p className="text-[10px] text-slate-400">{doctorStaff.find(s => s.id === selectedDocStaff)?.category || doctorStaff.find(s => s.id === selectedDocStaff)?.department}</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
+                    <input
+                      type="password"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium"
+                      placeholder="Enter your password"
+                      value={docPassword}
+                      onChange={(e) => setDocPassword(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleDocLogin(); }}
+                      autoFocus
+                    />
+                  </div>
+                  {docLoginError && (
+                    <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold px-3 py-2 rounded-xl">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {docLoginError}
+                    </div>
+                  )}
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleDocLogin}
+                      disabled={!docPassword.trim() || docLoginLoading}
+                      className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all shadow-sm ${
+                        docPassword.trim() && !docLoginLoading
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                          : "bg-slate-100 text-slate-400 cursor-not-allowed"
+                      }`}
+                    >
+                      {docLoginLoading ? 'Verifying...' : 'Login'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : !activeShift ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-slate-400"></div>
-                  <h4 className="text-sm font-extrabold text-slate-800 font-sans tracking-tight">Shift Control: Doctor Workstation</h4>
+                  <h4 className="text-sm font-extrabold text-slate-800 font-sans tracking-tight">Start Shift: {docName}</h4>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setShowShiftHistory(!showShiftHistory); if (!showShiftHistory) fetchShiftHistory(); }}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 uppercase tracking-wide transition-colors"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  {showShiftHistory ? "Hide Shift Logs" : "View Shift Logs"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setDocLoggedIn(false); setDocPassword(''); setSelectedDocStaff(''); setDocLoginStep('list'); }}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-rose-600 uppercase tracking-wide transition-colors"
+                  >
+                    Logout
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowShiftHistory(!showShiftHistory); if (!showShiftHistory) fetchShiftHistory(); }}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-blue-600 uppercase tracking-wide transition-colors"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    {showShiftHistory ? "Hide Logs" : "View Logs"}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Doctor Name</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
-                    <input
-                      type="text"
-                      className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-sans font-medium"
-                      placeholder="e.g. Dr. Alex Carter"
-                      value={docName}
-                      onChange={(e) => setDocName(e.target.value)}
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Consulting Room</label>
                   <select
@@ -387,14 +484,14 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
                   </select>
                 </div>
 
-                <div className="flex justify-end pt-1">
+                <div className="flex justify-end items-end pt-1">
                 <button
                   type="button"
                   id="start-shift-btn"
                   onClick={handleStartShift}
-                  disabled={!docName.trim() || loadingAction}
+                  disabled={loadingAction}
                   className={`flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider py-2.5 px-5 rounded-xl transition-all shadow-sm ${
-                    docName.trim() && !loadingAction
+                    !loadingAction
                       ? "bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md cursor-pointer"
                       : "bg-slate-100 text-slate-400 cursor-not-allowed"
                   }`}
@@ -642,48 +739,6 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
           </div>
 
           <div className="flex items-center gap-3 self-end md:self-auto">
-            <button
-              id="toggle-doctor-audio-btn"
-              type="button"
-              onClick={toggleAudio}
-              className={`flex items-center justify-center gap-1.5 text-xs border py-2 px-4 rounded-xl transition-all cursor-pointer font-bold uppercase tracking-wider ${
-                audioEnabled
-                  ? 'border-blue-200 bg-blue-50/80 text-blue-700 hover:bg-blue-100/70'
-                  : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
-              }`}
-              title="Toggle audio chime when calling a patient"
-            >
-              {audioEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-              Chime: {audioEnabled ? 'ON' : 'Muted'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                preloadVoices();
-                setTtsEnabled(prev => {
-                  const next = !prev;
-                  localStorage.setItem('doctor_tts_enabled', String(next));
-                  if (!next) stopSpeech();
-                  return next;
-                });
-              }}
-              className={`flex items-center justify-center gap-1.5 text-xs border py-2 px-4 rounded-xl transition-all cursor-pointer font-bold uppercase tracking-wider ${
-                ttsEnabled
-                  ? 'border-emerald-200 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100/70'
-                  : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
-              }`}
-              title="Toggle Amharic voice announcement when calling patients"
-            >
-              Voice: {ttsEnabled ? 'ON' : 'OFF'}
-            </button>
-
-            {ttsEnabled && (
-              <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-xl uppercase tracking-wider">
-                AM + EN
-              </span>
-            )}
-
             <button
               id="seed-reset-btn"
               type="button"
@@ -1016,3 +1071,5 @@ export default function DoctorDashboard({ patients, onUpdatePatients, onResetDat
     </div>
   );
 }
+
+export default memo(DoctorDashboard);

@@ -134,6 +134,117 @@ async def queue_speak(req: QueueRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class PrintTicketRequest(BaseModel):
+    id: str
+    name: str
+    department: str
+    service: str
+    checkInTime: str
+    estimatedWaitMinutes: int
+    qrDataUrl: str | None = None
+
+
+@app.post("/print-ticket")
+async def print_ticket(req: PrintTicketRequest):
+    import base64, io, textwrap
+    from PIL import Image, ImageDraw, ImageFont
+
+    W, H = 384, 900
+    BOLD, REG = None, None
+    try:
+        BOLD = ImageFont.truetype("C:/Windows/Fonts/arialbd.ttf", 28)
+    except:
+        BOLD = ImageFont.load_default()
+    try:
+        REG = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 20)
+    except:
+        REG = ImageFont.load_default()
+
+    img = Image.new("RGB", (W, H), "white")
+    d = ImageDraw.Draw(img)
+    y = 20
+    BLACK, GRAY = "#000000", "#555555"
+
+    def center(text, font, color=BLACK):
+        nonlocal y
+        bbox = d.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+        d.text(((W - tw) // 2, y), text, fill=color, font=font)
+        y += bbox[3] - bbox[1] + 4
+
+    def line(text, font, color=BLACK):
+        nonlocal y
+        d.text((20, y), text, fill=color, font=font)
+        bbox = d.textbbox((0, 0), text, font=font)
+        y += bbox[3] - bbox[1] + 4
+
+    center("LANCET GENERAL HOSPITAL", BOLD)
+    center("\u2605 \u2605 \u2605 TICKET \u2605 \u2605 \u2605", REG, GRAY)
+    y += 8
+    d.line([(20, y), (W - 20, y)], fill="black", width=2)
+    y += 12
+
+    center(f"Ticket #{req.id}", BOLD)
+    y += 4
+    d.line([(20, y), (W - 20, y)], fill="black", width=1)
+    y += 12
+
+    line(f"Patient:  {req.name}", REG)
+    line(f"Dept:     {req.department}", REG)
+    line(f"Service:  {req.service}", REG)
+    y += 4
+    d.line([(20, y), (W - 20, y)], fill="black", width=1)
+    y += 12
+
+    line(f"Check-in: {req.checkInTime}", REG)
+    line(f"Est wait: {req.estimatedWaitMinutes} min", BOLD)
+    y += 4
+    d.line([(20, y), (W - 20, y)], fill="black", width=1)
+    y += 12
+
+    barcode_text = f"  * {req.id} *  "
+    bw = d.textbbox((0, 0), barcode_text, font=BOLD)
+    d.text(((W - (bw[2] - bw[0])) // 2, y), barcode_text, fill=BLACK, font=BOLD)
+    y += bw[3] - bw[1] + 16
+
+    center("Please keep this ticket with you.", REG, GRAY)
+    y += 12
+
+    if req.qrDataUrl:
+        try:
+            _, b64 = req.qrDataUrl.split(",", 1)
+            qr_bytes = base64.b64decode(b64)
+            qr = Image.open(io.BytesIO(qr_bytes)).convert("RGB")
+            qr = qr.resize((150, 150))
+            qx = (W - 150) // 2
+            qy = y
+            img.paste(qr, (qx, qy))
+            y += 160
+        except:
+            pass
+
+    out = io.BytesIO()
+    cropped = img.crop((0, 0, W, min(y + 40, H)))
+    cropped.save(out, format="BMP")
+    out.seek(0)
+    bmp_bytes = out.read()
+
+    try:
+        printer_name = win32print.GetDefaultPrinter()
+        hprinter = win32print.OpenPrinter(printer_name)
+        try:
+            win32print.StartDocPrinter(hprinter, 1, ("ticket", None, "RAW"))
+            win32print.StartPagePrinter(hprinter)
+            win32print.WritePrinter(hprinter, bmp_bytes)
+            win32print.EndPagePrinter(hprinter)
+            win32print.EndDocPrinter(hprinter)
+        finally:
+            win32print.ClosePrinter(hprinter)
+        return {"status": "ok", "printer": printer_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/test")
 async def test_page():
     return HTMLResponse(content=TEST_HTML)

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import {
   BarChart2, TrendingUp, Clock, Users, CheckCircle, Activity,
   FileText, Search, AlertTriangle
@@ -25,7 +25,7 @@ const STATUS_COLORS: Record<string, string> = {
   NoShow: "#f43f5e",
 };
 
-export default function AnalyticsView({ patients }: AnalyticsViewProps) {
+function AnalyticsView({ patients }: AnalyticsViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
 
   const stats = useMemo(() => {
@@ -116,11 +116,11 @@ export default function AnalyticsView({ patients }: AnalyticsViewProps) {
     }));
   }, [patients]);
 
-  const filteredPatients = patients.filter(p =>
+  const filteredPatients = useMemo(() => patients.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.recommendedDepartment.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  ), [patients, searchTerm]);
 
   return (
     <div className="space-y-6">
@@ -360,3 +360,5 @@ export default function AnalyticsView({ patients }: AnalyticsViewProps) {
     </div>
   );
 }
+
+export default memo(AnalyticsView);

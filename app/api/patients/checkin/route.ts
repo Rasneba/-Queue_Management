@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPatient, getNextPatientNumber, recalculateWaitTimes } from "@/lib/store";
+import { createPatient, getNextPatientNumber, scheduleRecalculate } from "@/lib/store";
+import { notifyPatientsChanged } from "@/lib/realtime";
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,9 +31,13 @@ export async function POST(request: NextRequest) {
       mobile,
       service: service || "General Medicine",
       priorityLevel: priorityLevel || "Standard",
+      assignedRoom: null,
+      calledTime: null,
     });
 
-    await recalculateWaitTimes();
+    // Defer wait time recalculation (runs async, doesn't block response)
+    scheduleRecalculate();
+    notifyPatientsChanged();
 
     return NextResponse.json({
       id: ticketId,

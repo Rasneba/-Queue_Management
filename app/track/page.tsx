@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { Search, ArrowRight, Home } from 'lucide-react';
 import { BrandMark } from '@/lib/components/ui';
 
 export default function TrackPage() {
@@ -18,6 +19,14 @@ export default function TrackPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center p-4">
+      <Link
+        href="/"
+        className="fixed top-4 left-4 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-bold backdrop-blur transition-colors"
+        title="Back to Home"
+      >
+        <Home className="w-4 h-4" />
+        <span className="hidden sm:inline">Back to Home</span>
+      </Link>
       <div className="w-full max-w-md space-y-8 animate-fade-up">
         <div className="text-center space-y-3">
           <div className="flex justify-center">

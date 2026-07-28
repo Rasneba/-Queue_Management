@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Clock, AlertTriangle, Users, 
@@ -23,7 +23,7 @@ const PRESET_SYMPTOMS = [
   { id: "cold", dept: "General Medicine", label: "Sore throat / Standard cold", desc: "Mild fever, runny nose, congestion" },
 ];
 
-export default function KioskView({ patients = [], language = 'en' }: KioskViewProps) {
+function KioskView({ patients = [], language = 'en' }: KioskViewProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -312,3 +312,5 @@ export default function KioskView({ patients = [], language = 'en' }: KioskViewP
     </div>
   );
 }
+
+export default memo(KioskView);

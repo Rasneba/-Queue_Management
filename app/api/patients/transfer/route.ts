@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findPatient, updatePatient, recalculateWaitTimes } from "@/lib/store";
+import { updatePatientReturning, scheduleRecalculate } from "@/lib/store";
+import { notifyPatientsChanged } from "@/lib/realtime";
 
 export async function POST(request: NextRequest) {
   const { id, recommendedDepartment, assignedRoom, status } = await request.json();
   if (!id) {
     return NextResponse.json({ error: "Missing patient ID" }, { status: 400 });
-  }
-
-  const patient = await findPatient(id);
-  if (!patient) {
-    return NextResponse.json({ error: "Patient not found" }, { status: 404 });
   }
 
   const updates: Record<string, unknown> = {};
@@ -24,7 +20,11 @@ export async function POST(request: NextRequest) {
     updates.calledTime = null;
   }
 
-  await updatePatient(id, updates);
-  await recalculateWaitTimes();
+  const ok = await updatePatientReturning(id, updates);
+  if (!ok) {
+    return NextResponse.json({ error: "Patient not found" }, { status: 404 });
+  }
+  scheduleRecalculate();
+  notifyPatientsChanged();
   return NextResponse.json({ ok: true });
 }

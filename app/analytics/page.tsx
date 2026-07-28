@@ -1,15 +1,18 @@
 'use client';
-import usePatients from '@/lib/hooks/usePatients';
 import dynamic from 'next/dynamic';
+import ModuleShell from '@/lib/components/ModuleShell';
+import usePatients from '@/lib/hooks/usePatients';
 
 const AnalyticsView = dynamic(() => import('@/lib/components/AnalyticsView'), { ssr: false });
 
 export default function AnalyticsPage() {
-  const { patients } = usePatients();
+  const { patients, error, refresh } = usePatients();
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
-      <AnalyticsView patients={patients} />
-    </div>
+    <ModuleShell error={error} onRetry={refresh}>
+      {({ language }) => (
+        <AnalyticsView patients={patients} />
+      )}
+    </ModuleShell>
   );
 }

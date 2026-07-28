@@ -1,12 +1,11 @@
 'use client';
-import { useState } from 'react';
+import { useState, memo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   User, CalendarCheck, Heart, ArrowRight, CheckCircle, RefreshCw, 
   Printer, ShieldAlert, Search, ChevronRight, Flame, Clock
 } from 'lucide-react';
 import { Patient } from '@/lib/types';
-import QRCode from 'qrcode';
 import { Language, t } from '@/lib/utils/translations';
 
 interface SelfCheckInViewProps {
@@ -15,7 +14,7 @@ interface SelfCheckInViewProps {
   language?: Language;
 }
 
-export default function SelfCheckInView({ onCheckInSuccess, language = 'en' }: SelfCheckInViewProps) {
+function SelfCheckInView({ onCheckInSuccess, language = 'en' }: SelfCheckInViewProps) {
   const [step, setStep] = useState<'service' | 'identity' | 'done'>('service');
   const [selectedService, setSelectedService] = useState<'new' | 'existing' | 'appointment' | null>(null);
   const [name, setName] = useState("");
@@ -25,6 +24,88 @@ export default function SelfCheckInView({ onCheckInSuccess, language = 'en' }: S
   const [error, setError] = useState<string | null>(null);
   const [createdPatient, setCreatedPatient] = useState<Patient | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+
+  const handlePrint = useCallback(async () => {
+    if (!createdPatient) return;
+    const p = createdPatient;
+    const serviceLabel = selectedService === 'appointment'
+      ? (language === 'am' ? 'የሐኪም ቀጠሮ' : language === 'om' ? 'Qubannoo' : 'Appointment')
+      : (language === 'am' ? 'አዲስ ታካሚ' : language === 'om' ? 'Haaraa' : 'New Patient');
+
+    try {
+      const res = await fetch('http://localhost:8766/print-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: p.id,
+          name: p.name,
+          department: p.recommendedDepartment,
+          service: serviceLabel,
+          checkInTime: new Date(p.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          estimatedWaitMinutes: p.estimatedWaitMinutes,
+          qrDataUrl: qrCodeUrl,
+        }),
+      });
+      if (res.ok) return;
+    } catch { /* fall through to browser print */ }
+
+    const now = new Date(p.checkInTime);
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = now.toLocaleDateString();
+
+    const printWin = window.open('', '_blank', 'width=320,height=600,menubar=no,toolbar=no,location=no');
+    if (!printWin) return;
+    printWin.document.write(`<!DOCTYPE html>
+<html><head><title>Ticket #${p.id}</title>
+<style>
+  @page { margin: 0; size: 80mm auto; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New',monospace; margin: 0; padding: 12px 16px; text-align: center; font-size: 13px; color: #111; }
+  .header { font-size: 16px; font-weight: 900; letter-spacing: -0.5px; text-transform: uppercase; margin-bottom: 2px; }
+  .sub { font-size: 10px; letter-spacing: 1px; color: #555; margin-bottom: 6px; }
+  .divider { border: 0; border-top: 1px dashed #888; margin: 6px 0; }
+  .ticket-num { font-size: 38px; font-weight: 900; letter-spacing: 1px; margin: 4px 0; }
+  .label { font-size: 10px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .value { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .wait { font-size: 20px; font-weight: 900; color: #0a7; margin: 2px 0; }
+  .footer { font-size: 10px; color: #999; margin-top: 6px; }
+  .barcode { font-family: 'Courier New',monospace; font-size: 20px; letter-spacing: 1px; font-weight: 700; color: #333; }
+</style></head><body>
+  <div class="header">Lancet General Hospital</div>
+  <div class="sub">&#x2605; QUEUE TICKET &#x2605;</div>
+  <hr class="divider">
+  <div class="label">Ticket #</div>
+  <div class="ticket-num">${p.id}</div>
+  <hr class="divider">
+  <div class="label">Patient</div>
+  <div class="value">${p.name}</div>
+  <div class="label">Department</div>
+  <div class="value">${p.recommendedDepartment}</div>
+  <div class="label">Service</div>
+  <div class="value">${serviceLabel}</div>
+  <hr class="divider">
+  <div class="label">Check-in</div>
+  <div class="value">${dateStr} ${timeStr}</div>
+  <div class="label">Estimated Wait</div>
+  <div class="wait">${p.estimatedWaitMinutes} min</div>
+  <hr class="divider">
+  <div class="barcode">*${p.id}*</div>
+  <div class="footer">Please keep this ticket with you.<br>You will be called when it's your turn.</div>
+</body></html>`);
+    printWin.document.close();
+    printWin.focus();
+    setTimeout(() => {
+      printWin.print();
+      printWin.onafterprint = () => printWin.close();
+    }, 400);
+  }, [createdPatient, selectedService, language]);
+
+  useEffect(() => {
+    if (step === 'done' && createdPatient) {
+      const timer = setTimeout(() => handlePrint(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [step, createdPatient, handlePrint]);
 
   const resetForm = () => {
     setName("");
@@ -65,6 +146,7 @@ export default function SelfCheckInView({ onCheckInSuccess, language = 'en' }: S
 
       try {
         const trackerUrl = `${window.location.origin}/track/${data.id}`;
+        const QRCode = (await import('qrcode')).default;
         const qrDataUrl = await QRCode.toDataURL(trackerUrl, {
           width: 300, margin: 1.5,
           color: { dark: '#1e3a8a', light: '#ffffff' }
@@ -235,9 +317,9 @@ export default function SelfCheckInView({ onCheckInSuccess, language = 'en' }: S
                 )}
                 <div className="pt-2 border-t border-emerald-200/50 text-center text-[10px] text-slate-400 space-y-1">
                   <div>Check-in: {new Date(createdPatient.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                  <div className="flex items-center justify-center gap-1 text-emerald-600 font-medium">
-                    <Printer className="w-3 h-3" /> {language === 'am' ? 'ቲኬት በትክክል ታትሟል' : language === 'om' ? 'Tikkeen Maxxanfameera' : 'Ticket Printed Successfully'}
-                  </div>
+                  <button type="button" onClick={handlePrint} className="flex items-center justify-center gap-1 text-emerald-600 font-medium hover:text-emerald-800 cursor-pointer w-full">
+                    <Printer className="w-3 h-3" /> {language === 'am' ? 'ቲኬት ማተሚያ' : language === 'om' ? 'Maxxansuu' : 'Print Ticket'}
+                  </button>
                 </div>
               </motion.div>
 
@@ -261,3 +343,5 @@ export default function SelfCheckInView({ onCheckInSuccess, language = 'en' }: S
     </div>
   );
 }
+
+export default memo(SelfCheckInView);

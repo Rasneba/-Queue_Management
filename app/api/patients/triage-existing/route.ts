@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findPatient, updatePatient, recalculateWaitTimes, fallbackTriage } from "@/lib/store";
+import { findPatient, updatePatientReturning, scheduleRecalculate, fallbackTriage } from "@/lib/store";
+import { notifyPatientsChanged } from "@/lib/realtime";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const triageResult = fallbackTriage(patient.name, patient.age, patient.gender, symptoms);
 
-    await updatePatient(id, {
+    await updatePatientReturning(id, {
       symptoms,
       triagePriority: triageResult.triagePriority,
       triageScore: triageResult.triageScore,
@@ -25,7 +26,8 @@ export async function POST(request: NextRequest) {
       aiVitals: JSON.stringify(triageResult.suggestedVitalsToMeasure),
     });
 
-    await recalculateWaitTimes();
+    scheduleRecalculate();
+    notifyPatientsChanged();
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "An error occurred during triage";

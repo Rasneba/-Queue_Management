@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Shield, Users, BarChart3, LogOut, LayoutDashboard, Menu, X } from 'lucide-react';
+import Link from 'next/link';
+import { Shield, Users, BarChart3, LogOut, LayoutDashboard, Menu, X, Settings, Home } from 'lucide-react';
 
 interface StaffSession {
   id: string;
@@ -13,6 +14,7 @@ interface StaffSession {
 const NAV_ITEMS = [
   { href: '/backoffice/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/backoffice/staff', label: 'Staff Management', icon: Users },
+  { href: '/backoffice/settings', label: 'Parameters', icon: Settings },
   { href: '/backoffice/reports', label: 'Reports', icon: BarChart3 },
 ];
 
@@ -71,6 +73,14 @@ export default function BackOfficeLayout({ children }: { children: React.ReactNo
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
+          <button
+            onClick={() => { router.push('/'); setSidebarOpen(false); }}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all text-slate-400 hover:text-white hover:bg-slate-800"
+          >
+            <Home className="w-4 h-4" />
+            Home
+          </button>
+          <div className="border-t border-slate-800 my-2"></div>
           {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href;
             return (
@@ -112,6 +122,10 @@ export default function BackOfficeLayout({ children }: { children: React.ReactNo
             <Menu className="w-5 h-5 text-slate-600" />
           </button>
           <h1 className="text-sm font-bold text-slate-800">Back Office</h1>
+          <Link href="/" className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold">
+            <Home className="w-3.5 h-3.5" />
+            Home
+          </Link>
         </header>
         <main className="flex-1 p-6 overflow-auto">
           {children}

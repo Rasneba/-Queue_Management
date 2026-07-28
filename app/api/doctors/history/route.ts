@@ -18,7 +18,7 @@ export async function GET() {
     isActive: r.is_active,
     patientsTreated: r.patients_treated,
     durationMinutes: r.start_time && r.end_time
-      ? Math.max(1, Math.round((new Date(r.end_time).getTime() - new Date(r.start_time).getTime()) / 60000))
+      ? Math.max(1, Math.round((new Date(String(r.end_time)).getTime() - new Date(String(r.start_time)).getTime()) / 60000))
       : 0,
   }));
   return NextResponse.json(history);

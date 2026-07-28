@@ -1,19 +1,18 @@
 'use client';
-import usePatients from '@/lib/hooks/usePatients';
 import dynamic from 'next/dynamic';
+import ModuleShell from '@/lib/components/ModuleShell';
+import usePatients from '@/lib/hooks/usePatients';
 
 const KioskView = dynamic(() => import('@/lib/components/KioskView'), { ssr: false });
 
 export default function TriagePage() {
-  const { patients, refresh } = usePatients();
-
-  const handleSuccess = (newPatient: import('@/lib/types').Patient) => {
-    window.location.reload();
-  };
+  const { patients, error, refresh } = usePatients();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-900">
-      <KioskView onCheckInSuccess={handleSuccess} patients={patients} language="en" />
-    </div>
+    <ModuleShell error={error} onRetry={refresh}>
+      {({ language }) => (
+        <KioskView onCheckInSuccess={refresh} patients={patients} language={language} />
+      )}
+    </ModuleShell>
   );
 }

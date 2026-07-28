@@ -182,12 +182,12 @@ def build_queue_announcement(
 
     if lang == "am":
         dept_part = f"{dept_label_am} " if dept_label_am else ""
-        return f"እንግዳ ቁጥር {ticket_text} ወደ {dept_part}መቀበያ ቁጥር {counter_text} ይምጡ"
+        return f"እንግዳ ቁጥር {ticket_text} ወደ {dept_part}{counter_text} ይምጡ"
     if lang == "om":
         dept_part = f"{dept_label_om} " if dept_label_om else ""
-        return f"Konii {ticket_text} gara {dept_part}kabala {counter_text} keessaatti fudhamaa"
+        return f"Konii {ticket_text} gara {dept_part}{counter_text} keessaatti fudhamaa"
 
-    return f"Patient number {ticket_id}, please proceed to counter number {counter}"
+    return f"Patient number {ticket_id}, please proceed to {counter}"
 
 
 if __name__ == "__main__":

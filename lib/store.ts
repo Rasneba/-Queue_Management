@@ -1,5 +1,79 @@
 import { Priority, Department } from "./types";
-import sql from "./db";
+import sql, { withRetry, rawQuery, getNextPatientNumber, pool } from "./db";
+
+export { getNextPatientNumber };
+
+let recalculateTimer: ReturnType<typeof setTimeout> | null = null;
+let recalculateResolve: (() => void) | null = null;
+let periodicInterval: ReturnType<typeof setInterval> | null = null;
+
+// Run wait time recalculation periodically in background (every 30s)
+function ensurePeriodicRecalculate() {
+  if (periodicInterval) return;
+  periodicInterval = setInterval(async () => {
+    try {
+      await runRecalculate();
+    } catch {}
+  }, 30000);
+}
+
+export async function runRecalculate() {
+  await withRetry(() => sql`
+    WITH ranked AS (
+      SELECT id,
+        triage_priority,
+        triage_score,
+        recommended_department,
+        priority_level,
+        ROW_NUMBER() OVER (
+          PARTITION BY recommended_department
+          ORDER BY
+            CASE COALESCE(priority_level, 'Standard') WHEN 'VIP' THEN 3 WHEN 'Urgent' THEN 2 ELSE 1 END DESC,
+            CASE triage_priority WHEN 'Emergency' THEN 4 WHEN 'High' THEN 3 WHEN 'Medium' THEN 2 ELSE 1 END DESC,
+            triage_score DESC,
+            check_in_time ASC
+        ) AS dept_row
+      FROM patients
+      WHERE status = 'Waiting'
+    )
+    UPDATE patients SET estimated_wait_minutes = CASE
+      WHEN ranked.triage_priority = 'Emergency' THEN 2
+      WHEN ranked.triage_priority = 'High' THEN GREATEST(5, ranked.dept_row * 12 - 10)
+      ELSE ranked.dept_row * 12
+    END
+    FROM ranked WHERE patients.id = ranked.id
+  `);
+  invalidateCache();
+}
+
+export function scheduleRecalculate(): void {
+  ensurePeriodicRecalculate();
+  // Debounced non-blocking recalculation
+  if (recalculateTimer) clearTimeout(recalculateTimer);
+  recalculateTimer = setTimeout(async () => {
+    recalculateTimer = null;
+    try {
+      await runRecalculate();
+    } catch (err) {
+      console.error("[store] recalculateWaitTimes failed:", (err as Error).message);
+    }
+  }, 200);
+}
+
+export async function withTransaction<T>(fn: (client: { query: (text: string, params?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }> }) => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await fn(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 function rowToPatient(row: Record<string, unknown>): {
   id: string; name: string; age: number; gender: string; symptoms: string;
@@ -39,13 +113,50 @@ function rowToPatient(row: Record<string, unknown>): {
   };
 }
 
+let patientsCache: { data: ReturnType<typeof rowToPatient>[]; ts: number } | null = null;
+const CACHE_TTL_MS = 30000;
+
+let activeCache: { data: ReturnType<typeof rowToPatient>[]; ts: number } | null = null;
+const ACTIVE_TTL_MS = 10000;
+
+const PATIENT_COLUMNS = `id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, assigned_room, status, check_in_time, called_time, completed_time, estimated_wait_minutes, ai_explanation, ai_precaution, ai_vitals, mobile, service, priority_level`;
+
 export async function getPatients() {
-  const rows = await sql`SELECT * FROM patients ORDER BY check_in_time ASC`;
-  return rows.map(rowToPatient);
+  const now = Date.now();
+  if (patientsCache && (now - patientsCache.ts) < CACHE_TTL_MS) {
+    return patientsCache.data;
+  }
+  const rows = await withRetry(() => sql`SELECT ${sql.raw(PATIENT_COLUMNS)} FROM patients ORDER BY check_in_time ASC`);
+  const result = rows.map(rowToPatient);
+  patientsCache = { data: result, ts: now };
+  return result;
+}
+
+export async function getActivePatients() {
+  const now = Date.now();
+  if (activeCache && (now - activeCache.ts) < ACTIVE_TTL_MS) {
+    return activeCache.data;
+  }
+  const rows = await withRetry(() =>
+    sql`SELECT ${sql.raw(PATIENT_COLUMNS)} FROM patients WHERE status NOT IN ('Completed', 'NoShow') ORDER BY check_in_time ASC`
+  );
+  const result = rows.map(rowToPatient);
+  activeCache = { data: result, ts: now };
+  return result;
+}
+
+const CACHE_REFRESH_TOKENS = new Set<string>();
+
+export function invalidateCache(source?: string) {
+  if (source && CACHE_REFRESH_TOKENS.has(source)) return;
+  if (source) CACHE_REFRESH_TOKENS.add(source);
+  patientsCache = null;
+  activeCache = null;
+  setTimeout(() => { if (source) CACHE_REFRESH_TOKENS.delete(source); }, 1000);
 }
 
 export async function findPatient(id: string) {
-  const rows = await sql`SELECT * FROM patients WHERE id = ${id}`;
+  const rows = await withRetry(() => sql`SELECT ${sql.raw(PATIENT_COLUMNS)} FROM patients WHERE id = ${id}`);
   return rows.length > 0 ? rowToPatient(rows[0]) : undefined;
 }
 
@@ -55,11 +166,13 @@ export async function createPatient(data: {
   status: string; estimatedWaitMinutes: number;
   aiAnalysis: { priorityExplanation: string; clinicalPrecaution: string; suggestedVitalsToMeasure: string[] } | null;
   mobile?: string; service?: string; priorityLevel?: string;
+  assignedRoom?: string | null; calledTime?: string | null;
 }) {
-  await sql`
-    INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, status, estimated_wait_minutes, ai_explanation, ai_precaution, ai_vitals, mobile, service, priority_level)
-    VALUES (${data.id}, ${data.name}, ${data.age}, ${data.gender}, ${data.symptoms}, ${data.triagePriority}, ${data.triageScore}, ${data.recommendedDepartment}, ${data.status}, ${data.estimatedWaitMinutes}, ${data.aiAnalysis?.priorityExplanation || ''}, ${data.aiAnalysis?.clinicalPrecaution || ''}, ${JSON.stringify(data.aiAnalysis?.suggestedVitalsToMeasure || [])}, ${data.mobile || ''}, ${data.service || 'General Medicine'}, ${data.priorityLevel || 'Standard'})
-  `;
+  await withRetry(() => sql`
+    INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, status, estimated_wait_minutes, ai_explanation, ai_precaution, ai_vitals, mobile, service, priority_level, assigned_room, called_time)
+    VALUES (${data.id}, ${data.name}, ${data.age}, ${data.gender}, ${data.symptoms}, ${data.triagePriority}, ${data.triageScore}, ${data.recommendedDepartment}, ${data.status}, ${data.estimatedWaitMinutes}, ${data.aiAnalysis?.priorityExplanation || ''}, ${data.aiAnalysis?.clinicalPrecaution || ''}, ${JSON.stringify(data.aiAnalysis?.suggestedVitalsToMeasure || [])}, ${data.mobile || ''}, ${data.service || 'General Medicine'}, ${data.priorityLevel || 'Standard'}, ${data.assignedRoom ?? null}, ${data.calledTime ?? null})
+  `);
+  invalidateCache();
 }
 
 const FIELD_MAP: Record<string, string> = {
@@ -79,74 +192,79 @@ const FIELD_MAP: Record<string, string> = {
 };
 
 export async function updatePatient(id: string, updates: Record<string, unknown>) {
+  await updatePatientReturning(id, updates);
+}
+
+export async function updatePatientReturning(id: string, updates: Record<string, unknown>): Promise<boolean> {
   const entries = Object.entries(updates).filter(([key, val]) => val !== undefined && FIELD_MAP[key]);
-  if (entries.length === 0) return;
+  if (entries.length === 0) return false;
 
-  const setClauses = entries.map(([key], i) => `${FIELD_MAP[key]} = $${i + 1}`);
-  const values = entries.map(([, val]) => val);
-  values.push(id);
-
-  const query = `UPDATE patients SET ${setClauses.join(', ')} WHERE id = $${entries.length + 1}`;
-
-  const { Pool } = await import("@neondatabase/serverless");
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  try {
-    await pool.query(query, values);
-  } finally {
-    await pool.end();
+  let changed = false;
+  for (const [key, val] of entries) {
+    const col = FIELD_MAP[key];
+    const res = await sql`UPDATE patients SET ${sql.raw(col)} = ${val ?? null} WHERE id = ${id} RETURNING id`;
+    if (res.length > 0) changed = true;
   }
+  if (changed) invalidateCache();
+  return changed;
 }
 
-export async function getNextPatientNumber(): Promise<number> {
-  const result = await sql`
-    UPDATE patient_counter SET next_number = next_number + 1 WHERE id = 1 RETURNING next_number
-  `;
-  return result[0].next_number;
+export interface PatientSummary {
+  id: string;
+  name: string;
+  status: string;
+  assignedRoom: string | null;
+  triagePriority: Priority;
+  triageScore: number;
+  recommendedDepartment: Department;
+  estimatedWaitMinutes: number;
+  checkInTime: string;
+  calledTime: string | null;
+  completedTime: string | null;
+  priorityLevel?: 'Standard' | 'Urgent' | 'VIP';
 }
 
-export async function recalculateWaitTimes() {
-  await sql`
-    WITH ranked AS (
-      SELECT id,
-        triage_priority,
-        triage_score,
-        recommended_department,
-        priority_level,
-        ROW_NUMBER() OVER (
-          PARTITION BY recommended_department
-          ORDER BY
-            CASE COALESCE(priority_level, 'Standard') WHEN 'VIP' THEN 3 WHEN 'Urgent' THEN 2 ELSE 1 END DESC,
-            CASE triage_priority WHEN 'Emergency' THEN 4 WHEN 'High' THEN 3 WHEN 'Medium' THEN 2 ELSE 1 END DESC,
-            triage_score DESC,
-            check_in_time ASC
-        ) AS dept_row
-      FROM patients
-      WHERE status = 'Waiting'
-    )
-    UPDATE patients SET estimated_wait_minutes = CASE
-      WHEN ranked.triage_priority = 'Emergency' THEN 2
-      WHEN ranked.triage_priority = 'High' THEN GREATEST(5, ranked.dept_row * 12 - 10)
-      ELSE ranked.dept_row * 12
-    END
-    FROM ranked WHERE patients.id = ranked.id
-  `;
+export async function getPatientsSummary(): Promise<PatientSummary[]> {
+  const rows = await withRetry(() => sql`
+    SELECT id, name, status, assigned_room, triage_priority, triage_score, recommended_department, estimated_wait_minutes, check_in_time, called_time, completed_time, priority_level
+    FROM patients ORDER BY check_in_time ASC
+  `);
+  return rows.map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    status: r.status as string,
+    assignedRoom: (r.assigned_room as string | null) ?? null,
+    triagePriority: r.triage_priority as Priority,
+    triageScore: r.triage_score as number,
+    recommendedDepartment: r.recommended_department as Department,
+    estimatedWaitMinutes: r.estimated_wait_minutes as number,
+    checkInTime: r.check_in_time as string,
+    calledTime: (r.called_time as string | null) ?? null,
+    completedTime: (r.completed_time as string | null) ?? null,
+    priorityLevel: r.priority_level as 'Standard' | 'Urgent' | 'VIP' | undefined,
+  }));
 }
+
+export { scheduleRecalculate as recalculateWaitTimes };
 
 export async function resetStore() {
-  await sql`DELETE FROM patients`;
-  await sql`UPDATE patient_counter SET next_number = 8 WHERE id = 1`;
+  await withTransaction(async (client) => {
+    await client.query(`DELETE FROM patients`);
+    await client.query(`UPDATE patient_counter SET next_number = 8 WHERE id = 1`);
 
-  await sql`
-    INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, assigned_room, status, estimated_wait_minutes)
-    VALUES
-      ('P-1', 'Ato Tesfaye Bekele', 58, 'Male', 'Crushing chest pain radiating to left arm, shortness of breath, and profuse sweating since morning', 'Emergency', 5, 'Cardiology', 'Trauma Room 2', 'Serving', 0),
-      ('P-2', 'Sara Ahmed', 5, 'Female', 'High fever 39.5C for 2 days, coughing, refusing to eat, weak and lethargic', 'High', 4, 'Pediatrics', 'Room 4', 'Called', 0),
-      ('P-3', 'W/ro Hirut Mengistu', 45, 'Female', 'Sudden severe headache, worst of my life, with nausea and vomiting, stiff neck, sensitivity to light', 'Emergency', 5, 'Neurology', 'Trauma Room 1', 'Serving', 0),
-      ('P-4', 'Ato Daniel Girma', 32, 'Male', 'Road traffic accident, fractured right femur, severe pain, leg shortened and externally rotated', 'High', 4, 'Orthopedics', 'Room 3', 'Waiting', 15),
-      ('P-5', 'W/ro Fatima Yusuf', 28, 'Female', '8 months pregnant, severe headaches, blurred vision, swelling of face and hands, blood pressure 170/110', 'High', 4, 'Gynecology', 'Room 5', 'Waiting', 12),
-      ('P-6', 'Mulu Girma', 41, 'Female', 'Persistent cough for 3 weeks, night sweats, weight loss, occasional blood in sputum', 'Medium', 3, 'General Medicine', NULL, 'Waiting', 35),
-      ('P-7', 'Ato Solomon Dinku', 72, 'Male', 'Prescription renewal for diabetes and hypertension, feeling fine, just routine check', 'Low', 1, 'General Medicine', 'Room 1', 'Completed', 0)
-  `;
+    await client.query(`
+      INSERT INTO patients (id, name, age, gender, symptoms, triage_priority, triage_score, recommended_department, assigned_room, status, estimated_wait_minutes)
+      VALUES
+        ('P-1', 'Ato Tesfaye Bekele', 58, 'Male', 'Crushing chest pain radiating to left arm, shortness of breath, and profuse sweating since morning', 'Emergency', 5, 'Cardiology', 'Trauma Room 2', 'Serving', 0),
+        ('P-2', 'Sara Ahmed', 5, 'Female', 'High fever 39.5C for 2 days, coughing, refusing to eat, weak and lethargic', 'High', 4, 'Pediatrics', 'Room 4', 'Called', 0),
+        ('P-3', 'W/ro Hirut Mengistu', 45, 'Female', 'Sudden severe headache, worst of my life, with nausea and vomiting, stiff neck, sensitivity to light', 'Emergency', 5, 'Neurology', 'Trauma Room 1', 'Serving', 0),
+        ('P-4', 'Ato Daniel Girma', 32, 'Male', 'Road traffic accident, fractured right femur, severe pain, leg shortened and externally rotated', 'High', 4, 'Orthopedics', 'Room 3', 'Waiting', 15),
+        ('P-5', 'W/ro Fatima Yusuf', 28, 'Female', '8 months pregnant, severe headaches, blurred vision, swelling of face and hands, blood pressure 170/110', 'High', 4, 'Gynecology', 'Room 5', 'Waiting', 12),
+        ('P-6', 'Mulu Girma', 41, 'Female', 'Persistent cough for 3 weeks, night sweats, weight loss, occasional blood in sputum', 'Medium', 3, 'General Medicine', NULL, 'Waiting', 35),
+        ('P-7', 'Ato Solomon Dinku', 72, 'Male', 'Prescription renewal for diabetes and hypertension, feeling fine, just routine check', 'Low', 1, 'General Medicine', 'Room 1', 'Completed', 0)
+    `);
+  });
+  invalidateCache();
 }
 
 export function fallbackTriage(name: string, age: number, gender: string, symptoms: string) {

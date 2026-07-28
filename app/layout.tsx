@@ -1,5 +1,24 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Lancet General Hospital - Queue Management",
@@ -19,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth" suppressHydrationWarning>
+    <html lang="en" className={`scroll-smooth ${inter.variable} ${jetbrainsMono.variable} ${plusJakartaSans.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{
           __html: `try{if(localStorage.getItem('app_dark_mode')==='true')document.documentElement.classList.add('dark')}catch(e){}`

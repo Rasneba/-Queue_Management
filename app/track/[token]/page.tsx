@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { BrandMark, StatusBadge, Spinner } from '@/lib/components/ui';
-import { MapPin, Clock, Users, ArrowLeft, Phone } from 'lucide-react';
+import { MapPin, Clock, Users, ArrowLeft, Phone, Home } from 'lucide-react';
+import { onPatientChange } from '@/lib/realtime';
 
 interface TrackData {
   patient: {
@@ -46,22 +47,31 @@ export default function TrackTokenPage() {
 
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
     const fetchTrack = async () => {
       try {
         const res = await fetch(`/api/track/${token}`);
         if (!res.ok) throw new Error('Token not found');
         const json = await res.json();
+        if (cancelled) return;
         setData(json);
         setError('');
       } catch {
-        setError('Token not found. Please check your ticket number.');
+        if (!cancelled) setError('Token not found. Please check your ticket number.');
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchTrack();
-    const interval = setInterval(fetchTrack, 5000);
-    return () => clearInterval(interval);
+    const unsub = onPatientChange((e) => {
+      if (e.type === 'patients') fetchTrack();
+    });
+    const fallback = setInterval(fetchTrack, 30000);
+    return () => {
+      cancelled = true;
+      unsub();
+      clearInterval(fallback);
+    };
   }, [token]);
 
   if (loading) {
@@ -92,6 +102,14 @@ export default function TrackTokenPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 p-4">
+      <Link
+        href="/"
+        className="fixed top-4 left-4 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 text-white text-xs font-bold backdrop-blur transition-colors"
+        title="Back to Home"
+      >
+        <Home className="w-4 h-4" />
+        <span className="hidden sm:inline">Back to Home</span>
+      </Link>
       <div className="max-w-md mx-auto space-y-4 pt-8">
         {/* Token Hero */}
         <div className={`bg-gradient-to-br ${banner.bg} rounded-3xl p-6 text-white text-center shadow-xl animate-fade-up`}>

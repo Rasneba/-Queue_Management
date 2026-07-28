@@ -5,3 +5,8 @@ tts-server/*.pyc
 .env
 .env.local
 .env.production
+dev.err
+dev.log
+dev-output.log
+lib/oracleJdk-26/
+tsconfig.tsbuildinfo

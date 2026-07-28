@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import { motion } from 'motion/react';
 import { 
   X, Clock, Flame, ShieldAlert, CheckCircle2, Heart, 
@@ -15,7 +15,7 @@ interface PatientStatusModalProps {
   onRefresh: () => Promise<void>;
 }
 
-export default function PatientStatusModal({ patientId, patients, onClose, onRefresh }: PatientStatusModalProps) {
+function PatientStatusModal({ patientId, patients, onClose, onRefresh }: PatientStatusModalProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const prevStatusRef = useRef<string | null>(null);
@@ -365,3 +365,5 @@ export default function PatientStatusModal({ patientId, patients, onClose, onRef
     </div>
   );
 }
+
+export default memo(PatientStatusModal);

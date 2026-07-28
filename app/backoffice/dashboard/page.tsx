@@ -1,7 +1,8 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Users, Stethoscope, ClipboardList, Activity, ArrowRight } from 'lucide-react';
+import { onPatientChange } from '@/lib/realtime';
 
 interface Stats {
   totalPatients: number;
@@ -16,31 +17,40 @@ export default function BackOfficeDashboard() {
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [patientsRes, doctorsRes, staffRes] = await Promise.all([
-          fetch('/api/stats'),
-          fetch('/api/doctors/active'),
-          fetch('/api/staff'),
-        ]);
-        const patients = await patientsRes.json();
-        const doctors = await doctorsRes.json();
-        const staff = await staffRes.json();
-        setStats({
-          totalPatients: (patients.waiting || 0) + (patients.called || 0) + (patients.serving || 0) + (patients.completed || 0),
-          waiting: patients.waiting || 0,
-          serving: patients.serving || 0,
-          completed: patients.completed || 0,
-          activeDoctors: doctors.length,
-          totalStaff: staff.length,
-        });
-      } catch { /* silent */ }
-    };
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+  const fetchData = useCallback(async () => {
+    try {
+      const [patientsRes, doctorsRes, staffRes] = await Promise.all([
+        fetch('/api/stats'),
+        fetch('/api/doctors/active'),
+        fetch('/api/staff'),
+      ]);
+      const patients = await patientsRes.json();
+      const doctors = await doctorsRes.json();
+      const staff = await staffRes.json();
+      setStats({
+        totalPatients: (patients.waiting || 0) + (patients.called || 0) + (patients.serving || 0) + (patients.completed || 0),
+        waiting: patients.waiting || 0,
+        serving: patients.serving || 0,
+        completed: patients.completed || 0,
+        activeDoctors: doctors.length,
+        totalStaff: staff.length,
+      });
+    } catch { /* silent */ }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+    const unsub = onPatientChange((e) => {
+      if (e.type === 'patients' || e.type === 'stats' || e.type === 'doctors' || e.type === 'staff') {
+        fetchData();
+      }
+    });
+    const interval = setInterval(fetchData, 30000);
+    return () => {
+      unsub();
+      clearInterval(interval);
+    };
+  }, [fetchData]);
 
   const cards = stats ? [
     { label: 'Total Patients', value: stats.totalPatients, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100' },

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { motion } from 'motion/react';
 import {
   BarChart3, Users, Stethoscope, Clock, Filter, Calendar,
@@ -79,7 +79,7 @@ const STATUS_COLORS: Record<string, string> = {
   NoShow: 'bg-rose-400',
 };
 
-export default function Reports({ onBack }: ReportsProps) {
+function Reports({ onBack }: ReportsProps) {
   const [reportType, setReportType] = useState<ReportType>('triage');
   const [datePreset, setDatePreset] = useState<DatePreset>('month');
   const [customFrom, setCustomFrom] = useState(() => getDateRange('month').from);
@@ -450,3 +450,5 @@ export default function Reports({ onBack }: ReportsProps) {
     </div>
   );
 }
+
+export default memo(Reports);
