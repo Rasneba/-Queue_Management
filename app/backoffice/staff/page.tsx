@@ -14,7 +14,7 @@ interface StaffMember {
 }
 
 const ROLES = ['Reception', 'Triage', 'Doctor'] as const;
-const DESKS = ['Desk 1', 'Desk 2', 'Desk 3', 'Desk 4'];
+const DESKS_FALLBACK = ['Desk 1', 'Desk 2', 'Desk 3', 'Desk 4'];
 const CATEGORIES = ['General Practitioner', 'Specialist', 'Consultant', 'Surgeon', 'Resident', 'Registrar'];
 const DEPARTMENTS = [
   'General Medicine', 'Pediatrics', 'Cardiology', 'Orthopedics', 'Emergency',
@@ -29,6 +29,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 export default function StaffManagement() {
   const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [desks, setDesks] = useState<string[]>(DESKS_FALLBACK);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formName, setFormName] = useState('');
@@ -52,6 +53,15 @@ export default function StaffManagement() {
   }, []);
 
   useEffect(() => { fetchStaff(); }, [fetchStaff]);
+
+  useEffect(() => {
+    fetch('/api/settings?category=desk')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { name: string }[]) => {
+        if (data.length > 0) setDesks(data.map(d => d.name));
+      })
+      .catch(() => {});
+  }, []);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,7 +212,7 @@ export default function StaffManagement() {
                   value={formDesk}
                   onChange={(e) => setFormDesk(e.target.value)}
                 >
-                  {DESKS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {desks.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             )}

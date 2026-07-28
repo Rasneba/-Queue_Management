@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, Plus, Trash2, Building2, Shield, AlertCircle, CheckCircle } from 'lucide-react';
+import { Settings, Plus, Trash2, Building2, Shield, Monitor, AlertCircle, CheckCircle } from 'lucide-react';
 
 interface SettingItem {
   id: number;
@@ -8,12 +8,27 @@ interface SettingItem {
   created_at: string;
 }
 
-type TabType = 'department' | 'role';
+type TabType = 'department' | 'role' | 'desk';
+
+const TABS: { key: TabType; label: string; icon: typeof Building2 }[] = [
+  { key: 'department', label: 'Departments', icon: Building2 },
+  { key: 'role', label: 'Roles', icon: Shield },
+  { key: 'desk', label: 'Desks', icon: Monitor },
+];
+
+const PLACEHOLDERS: Record<TabType, string> = {
+  department: 'e.g. Urology',
+  role: 'e.g. Nurse',
+  desk: 'e.g. Desk 5',
+};
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabType>('department');
-  const [departments, setDepartments] = useState<SettingItem[]>([]);
-  const [roles, setRoles] = useState<SettingItem[]>([]);
+  const [items, setItems] = useState<Record<TabType, SettingItem[]>>({
+    department: [],
+    role: [],
+    desk: [],
+  });
   const [newName, setNewName] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -25,8 +40,7 @@ export default function SettingsPage() {
       const res = await fetch(`/api/settings?category=${category}`);
       if (res.ok) {
         const data = await res.json();
-        if (category === 'department') setDepartments(data);
-        else setRoles(data);
+        setItems(prev => ({ ...prev, [category]: data }));
       }
     } catch { /* silent */ }
     setLoading(false);
@@ -35,6 +49,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchItems('department');
     fetchItems('role');
+    fetchItems('desk');
   }, [fetchItems]);
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -54,7 +69,7 @@ export default function SettingsPage() {
         setError(data.error || 'Failed to add');
         return;
       }
-      setSuccess(`"${newName.trim()}" added to ${activeTab === 'department' ? 'departments' : 'roles'}`);
+      setSuccess(`"${newName.trim()}" added to ${activeTab}s`);
       setNewName('');
       fetchItems(activeTab);
     } catch {
@@ -72,7 +87,7 @@ export default function SettingsPage() {
     } catch { /* silent */ }
   };
 
-  const items = activeTab === 'department' ? departments : roles;
+  const currentItems = items[activeTab];
 
   return (
     <div className="space-y-6">
@@ -81,31 +96,32 @@ export default function SettingsPage() {
           <Settings className="w-5 h-5 text-blue-600" />
           System Parameters
         </h1>
-        <p className="text-xs text-slate-400 font-medium mt-0.5">Manage departments and roles used across the system</p>
+        <p className="text-xs text-slate-400 font-medium mt-0.5">Manage departments, roles, and desks used across the system</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-2">
-        {([
-          { key: 'department' as TabType, label: 'Departments', icon: Building2, count: departments.length },
-          { key: 'role' as TabType, label: 'Roles', icon: Shield, count: roles.length },
-        ]).map(t => (
-          <button
-            key={t.key}
-            onClick={() => { setActiveTab(t.key); setError(''); setSuccess(''); setNewName(''); }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === t.key
-                ? 'bg-slate-800 text-white shadow-sm'
-                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-            }`}
-          >
-            <t.icon className="w-3.5 h-3.5" />
-            {t.label}
-            <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
-              activeTab === t.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
-            }`}>{t.count}</span>
-          </button>
-        ))}
+      <div className="flex items-center gap-2 flex-wrap">
+        {TABS.map(t => {
+          const Icon = t.icon;
+          const count = items[t.key].length;
+          return (
+            <button
+              key={t.key}
+              onClick={() => { setActiveTab(t.key); setError(''); setSuccess(''); setNewName(''); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                activeTab === t.key
+                  ? 'bg-slate-800 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {t.label}
+              <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                activeTab === t.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
+              }`}>{count}</span>
+            </button>
+          );
+        })}
       </div>
 
       {success && (
@@ -118,12 +134,12 @@ export default function SettingsPage() {
       <form onSubmit={handleAdd} className="flex items-end gap-3">
         <div className="flex-1 max-w-md">
           <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-            New {activeTab === 'department' ? 'Department' : 'Role'} Name
+            New {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Name
           </label>
           <input
             type="text"
             className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-            placeholder={activeTab === 'department' ? 'e.g. Urology' : 'e.g. Nurse'}
+            placeholder={PLACEHOLDERS[activeTab]}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
           />
@@ -151,9 +167,9 @@ export default function SettingsPage() {
       {/* List */}
       {loading ? (
         <div className="text-center py-12 text-slate-400 text-sm font-bold">Loading...</div>
-      ) : items.length === 0 ? (
+      ) : currentItems.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-100">
-          <p className="text-sm font-bold text-slate-500">No {activeTab === 'department' ? 'departments' : 'roles'} found</p>
+          <p className="text-sm font-bold text-slate-500">No {activeTab}s found</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -167,7 +183,7 @@ export default function SettingsPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item, i) => (
+              {currentItems.map((item, i) => (
                 <tr key={item.id} className={`border-t border-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                   <td className="px-4 py-3 text-slate-400 font-medium">{i + 1}</td>
                   <td className="px-4 py-3 font-bold text-slate-800">{item.name}</td>

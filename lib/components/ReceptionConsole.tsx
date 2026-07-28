@@ -37,7 +37,7 @@ const DEPARTMENTS: Department[] = [
   'Dermatology', 'Radiology', 'Laboratory', 'Pharmacy'
 ];
 
-const DESKS = ["Desk 1", "Desk 2", "Desk 3", "Desk 4"];
+const DESKS_FALLBACK = ["Desk 1", "Desk 2", "Desk 3", "Desk 4"];
 
 const priorityOrder: Record<Priority, number> = { 'Emergency': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
 
@@ -63,6 +63,7 @@ interface LoginProps {
   passwordError: string;
   showPassword: boolean;
   loginLoading: boolean;
+  desks: string[];
   L: Tr;
   onSelectDesk: (desk: string) => void;
   onBackToDesks: () => void;
@@ -76,7 +77,7 @@ interface LoginProps {
 function ReceptionLogin(props: LoginProps) {
   const {
     deskStaff, selectedDesk, loginStep, selectedStaffName, password, passwordError,
-    showPassword, loginLoading, L, onSelectDesk, onBackToDesks, onLogin,
+    showPassword, loginLoading, desks, L, onSelectDesk, onBackToDesks, onLogin,
     setSelectedStaffName, setPassword, setPasswordError, setShowPassword,
   } = props;
 
@@ -97,7 +98,7 @@ function ReceptionLogin(props: LoginProps) {
             <motion.div key="desk-step" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
               <label className="block text-sm font-bold text-slate-700 mb-2.5">{L('ዴስክ ይምረጡ', 'Deskii Filadhaa', 'Select Your Desk')}</label>
               <div className="grid grid-cols-2 gap-3.5">
-                {DESKS.map((desk) => (
+                {desks.map((desk) => (
                   <button key={desk} type="button" onClick={() => onSelectDesk(desk)}
                     className="py-4 px-4 rounded-2xl border-2 border-slate-100 text-slate-600 hover:border-blue-300 hover:bg-blue-50 text-center font-bold text-sm transition-all cursor-pointer">
                     <div className="text-lg font-black mb-1">{desk.replace("Desk", L("ዴስክ", "Deskii", "Desk"))}</div>
@@ -510,6 +511,7 @@ function ReceptionConsole({ patients, onUpdatePatients, language = 'en', isOffli
   const [selectedDesk, setSelectedDesk] = useState<string>("");
   const [loginStep, setLoginStep] = useState<'desks' | 'staff'>('desks');
   const [deskStaff, setDeskStaff] = useState<DeskStaff[]>([]);
+  const [desks, setDesks] = useState<string[]>(DESKS_FALLBACK);
   const [selectedStaffName, setSelectedStaffName] = useState<string>("");
   const [loadingAction, setLoadingAction] = useState(false);
   const [password, setPassword] = useState<string>("");
@@ -524,6 +526,15 @@ function ReceptionConsole({ patients, onUpdatePatients, language = 'en', isOffli
 
   useEffect(() => { preloadVoices(); }, []);
   useEffect(() => { localStorage.setItem('reception_tts_enabled', String(audioEnabled)); }, [audioEnabled]);
+
+  useEffect(() => {
+    fetch('/api/settings?category=desk')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { name: string }[]) => {
+        if (data.length > 0) setDesks(data.map(d => d.name));
+      })
+      .catch(() => {});
+  }, []);
 
   const waitingPatients = useMemo(() => {
     return patients
@@ -853,6 +864,7 @@ function ReceptionConsole({ patients, onUpdatePatients, language = 'en', isOffli
             passwordError={passwordError}
             showPassword={showPassword}
             loginLoading={loginLoading}
+            desks={desks}
             L={L}
             onSelectDesk={handleSelectDesk}
             onBackToDesks={handleBackToDesks}

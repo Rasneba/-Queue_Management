@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import sql from "@/lib/db";
 
+const VALID_CATEGORIES = ["department", "role", "desk"];
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get("category");
-  if (!category || !["department", "role"].includes(category)) {
+  if (!category || !VALID_CATEGORIES.includes(category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
   const rows = await sql`SELECT id, name, created_at FROM system_settings WHERE category = ${category} ORDER BY name ASC`;
@@ -13,7 +15,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const { category, name } = await request.json();
-  if (!category || !name || !["department", "role"].includes(category)) {
+  if (!category || !name || !VALID_CATEGORIES.includes(category)) {
     return NextResponse.json({ error: "Valid category and name are required" }, { status: 400 });
   }
   try {

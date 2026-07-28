@@ -58,10 +58,16 @@ async function ensureMigrations() {
       await pool.query("ALTER TABLE staff ADD COLUMN IF NOT EXISTS category TEXT DEFAULT ''");
       await pool.query(`CREATE TABLE IF NOT EXISTS system_settings (
         id SERIAL PRIMARY KEY,
-        category TEXT NOT NULL CHECK (category IN ('department', 'role')),
+        category TEXT NOT NULL CHECK (category IN ('department', 'role', 'desk')),
         name TEXT NOT NULL UNIQUE,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )`);
+      try {
+        await pool.query(`DO $$ BEGIN
+          ALTER TABLE system_settings DROP CONSTRAINT IF EXISTS system_settings_category_check;
+          ALTER TABLE system_settings ADD CONSTRAINT system_settings_category_check CHECK (category IN ('department', 'role', 'desk'));
+        EXCEPTION WHEN OTHERS THEN NULL; END $$`);
+      } catch { /* constraint may already be correct */ }
       await Promise.all([
         (async () => {
           const deptCount = await pool.query("SELECT COUNT(*)::int AS cnt FROM system_settings WHERE category = 'department'");
@@ -75,6 +81,13 @@ async function ensureMigrations() {
           if (roleCount.rows[0].cnt === 0) {
             const defaults = ['Reception','Triage','Doctor','Admin'];
             await pool.query("INSERT INTO system_settings (category, name) SELECT 'role', unnest($1::text[]) ON CONFLICT (name) DO NOTHING", [defaults]);
+          }
+        })(),
+        (async () => {
+          const deskCount = await pool.query("SELECT COUNT(*)::int AS cnt FROM system_settings WHERE category = 'desk'");
+          if (deskCount.rows[0].cnt === 0) {
+            const defaults = ['Desk 1','Desk 2','Desk 3','Desk 4'];
+            await pool.query("INSERT INTO system_settings (category, name) SELECT 'desk', unnest($1::text[]) ON CONFLICT (name) DO NOTHING", [defaults]);
           }
         })(),
         (async () => {
@@ -244,7 +257,7 @@ export async function initDB() {
   await withRetry(() => sql`
     CREATE TABLE IF NOT EXISTS system_settings (
       id SERIAL PRIMARY KEY,
-      category TEXT NOT NULL CHECK (category IN ('department', 'role')),
+      category TEXT NOT NULL CHECK (category IN ('department', 'role', 'desk')),
       name TEXT NOT NULL UNIQUE,
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
