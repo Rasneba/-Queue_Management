@@ -6,30 +6,62 @@ const LANG_MAP: Record<Lang, string> = {
   om: "om-ET",
 };
 
-const TTS_SERVER_URL = "http://localhost:8765";
+const TTS_API_URL = "/api/tts";
+const TTS_LOCAL_URL = "http://localhost:8765";
 
 let currentAudio: HTMLAudioElement | null = null;
 
-async function isTTSServerAvailable(): Promise<boolean> {
+async function speakViaAPI(
+  text: string,
+  lang: Lang,
+  rate: string = "-10%",
+  pitch: string = "+0Hz"
+): Promise<boolean> {
   try {
-    const res = await fetch(`${TTS_SERVER_URL}/health`, { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(TTS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, lang, rate, pitch }),
+    });
+    if (!res.ok) return false;
+
+    const blob = await res.blob();
+    if (blob.size < 100) return false;
+    const url = URL.createObjectURL(blob);
+
+    return new Promise((resolve) => {
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); resolve(true); };
+      audio.onerror = () => { URL.revokeObjectURL(url); resolve(false); };
+      if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
+      currentAudio = audio;
+      audio.play().catch(() => resolve(false));
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function isLocalTTSServerAvailable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${TTS_LOCAL_URL}/health`, { signal: AbortSignal.timeout(1500) });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-async function speakQueueViaServer(
-  ticket: string,
-  counter: string,
+async function speakViaLocalServer(
+  text: string,
   lang: Lang,
-  department?: string,
+  rate: string = "-10%",
+  pitch: string = "+0Hz"
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${TTS_SERVER_URL}/queue-speak`, {
+    const res = await fetch(`${TTS_LOCAL_URL}/speak`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticket, counter, lang, department, rate: "-10%", pitch: "+0Hz" }),
+      body: JSON.stringify({ text, lang, rate, pitch }),
     });
     if (!res.ok) return false;
 
@@ -90,65 +122,66 @@ export function preloadVoices(): Promise<SpeechSynthesisVoice[]> {
   });
 }
 
+function speakWithFallback(
+  amharicText: string,
+  englishText: string
+): { am: Promise<void>; en: Promise<void> } {
+  return {
+    am: speakViaAPI(amharicText, "am").then((ok) => {
+      if (!ok) return speakViaBrowser(amharicText, "am");
+    }),
+    en: speakViaAPI(englishText, "en").then((ok) => {
+      if (!ok) return speakViaBrowser(englishText, "en");
+    }),
+  };
+}
+
 export async function speakTicket(ticketId: string, roomNumber: string, options: TTSOptions = {}): Promise<void> {
   const { department } = options;
-  const serverUp = await isTTSServerAvailable();
+  const deptAm = department ? getDeptAmharic(department) : "";
+  const deptPart = deptAm ? `${deptAm} ` : "";
 
-  if (serverUp) {
-    await speakQueueViaServer(ticketId, roomNumber, "am", department);
-    await new Promise(r => setTimeout(r, 400));
-    await speakQueueViaServer(ticketId, roomNumber, "en", department);
+  const amharicText = `እንግዳ ቁጥር ${ticketId}፣ ወደ ${deptPart}መቀበያ ቁጥር ${roomNumber} ይምጡ`;
+  const englishText = `Patient number ${ticketId}, please proceed to ${department ? department + " " : ""}counter number ${roomNumber}`;
+
+  const localUp = await isLocalTTSServerAvailable();
+
+  if (localUp) {
+    const amOK = await speakViaLocalServer(amharicText, "am");
+    if (amOK) await new Promise((r) => setTimeout(r, 400));
+    await speakViaLocalServer(englishText, "en");
   } else {
-    await speakViaBrowser(`ተጠራ ቁጥር ${ticketId}፣ ወደ መቀበያ ቁጥር ${roomNumber} ይምጡ`, "am");
-    await new Promise(r => setTimeout(r, 300));
-    await speakViaBrowser(`Patient number ${ticketId}, please proceed to counter number ${roomNumber}`, "en");
+    const amOK = await speakViaAPI(amharicText, "am");
+    if (amOK) await new Promise((r) => setTimeout(r, 400));
+    if (!amOK) {
+      await speakViaBrowser(amharicText, "am");
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    const enOK = await speakViaAPI(englishText, "en");
+    if (!enOK) {
+      await speakViaBrowser(englishText, "en");
+    }
   }
 }
 
 export async function speakText(textAmharic: string, textEnglish: string): Promise<void> {
-  const serverUp = await isTTSServerAvailable();
+  const localUp = await isLocalTTSServerAvailable();
 
-  if (serverUp) {
-    await speakQueueViaServer("speak", "", "am");
-    const resAm = await fetch(`${TTS_SERVER_URL}/speak`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: textAmharic, lang: "am", rate: "-10%", pitch: "+0Hz" }),
-    });
-    if (resAm.ok) {
-      const blob = await resAm.blob();
-      const url = URL.createObjectURL(blob);
-      await new Promise<void>((resolve) => {
-        const audio = new Audio(url);
-        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-        if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
-        currentAudio = audio;
-        audio.play().catch(() => resolve());
-      });
-    }
-    await new Promise(r => setTimeout(r, 400));
-    const resEn = await fetch(`${TTS_SERVER_URL}/speak`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: textEnglish, lang: "en", rate: "-10%", pitch: "+0Hz" }),
-    });
-    if (resEn.ok) {
-      const blob = await resEn.blob();
-      const url = URL.createObjectURL(blob);
-      await new Promise<void>((resolve) => {
-        const audio = new Audio(url);
-        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-        audio.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-        if (currentAudio) { currentAudio.pause(); currentAudio.src = ""; }
-        currentAudio = audio;
-        audio.play().catch(() => resolve());
-      });
-    }
+  if (localUp) {
+    const amOK = await speakViaLocalServer(textAmharic, "am");
+    if (amOK) await new Promise((r) => setTimeout(r, 400));
+    await speakViaLocalServer(textEnglish, "en");
   } else {
-    await speakViaBrowser(textAmharic, "am");
-    await new Promise(r => setTimeout(r, 300));
-    await speakViaBrowser(textEnglish, "en");
+    const amOK = await speakViaAPI(textAmharic, "am");
+    if (amOK) await new Promise((r) => setTimeout(r, 400));
+    if (!amOK) {
+      await speakViaBrowser(textAmharic, "am");
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    const enOK = await speakViaAPI(textEnglish, "en");
+    if (!enOK) {
+      await speakViaBrowser(textEnglish, "en");
+    }
   }
 }
 
@@ -174,6 +207,26 @@ export function getVoiceStatus(): { ready: boolean; count: number; amharic: bool
     amharic: voices.some(v => v.lang.startsWith("am")),
     languages: [...new Set(voices.map(v => v.lang))],
   };
+}
+
+function getDeptAmharic(dept: string): string {
+  const map: Record<string, string> = {
+    "General Medicine": "አጠቃላይ",
+    "Cardiology": "የልብ",
+    "Pediatrics": "የህጻናት",
+    "Orthopedics": "የአጥንት",
+    "Emergency": "የድንገተኛ",
+    "Neurology": "የነርቭ",
+    "Oncology": "የዐንክሎክ",
+    "Gynecology": "የሴቶች",
+    "ENT": "የትንኝ",
+    "Dermatology": "የቆዳ",
+    "Ophthalmology": "የአይን",
+    "Radiology": "የሬዲዮሎጂ",
+    "Laboratory": "የላቦራቶሪ",
+    "Pharmacy": "ፋርማሲ",
+  };
+  return map[dept] || "";
 }
 
 interface TTSOptions {
