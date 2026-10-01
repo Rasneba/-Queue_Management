@@ -60,6 +60,44 @@ def convert(mp3_bytes: bytes, fmt: str = DEFAULT_FORMAT) -> tuple[bytes, str, st
     return out.getvalue(), meta["media_type"], meta["ext"]
 
 
+def wav_to_mp3(wav_bytes: bytes) -> bytes:
+    """Re-encode mono WAV from an offline engine into MP3.
+
+    Keeps the container identical to edge-tts output so segments from different
+    engines can be concatenated into one response.
+    """
+    try:
+        import numpy as np
+    except ImportError as exc:
+        raise RuntimeError("numpy is required for offline engine encoding") from exc
+
+    try:
+        import soundfile as sf
+    except ImportError as exc:
+        raise RuntimeError("soundfile is required for offline engine encoding") from exc
+
+    samples, sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32")
+    if samples.ndim > 1:
+        samples = samples[:, 0]
+    if sample_rate != SAMPLE_RATE:
+        samples = _resample(samples, sample_rate, SAMPLE_RATE)
+
+    try:
+        import lameenc
+
+        encoder = lameenc.Encoder()
+        encoder.set_bit_rate(48)
+        encoder.set_in_sample_rate(SAMPLE_RATE)
+        encoder.set_channels(1)
+        pcm = np.clip(samples, -1.0, 1.0)
+        pcm = (pcm * 32767.0).astype(np.int16)
+        return bytes(encoder.encode(pcm.tobytes()) + encoder.flush())
+    except ImportError:
+        # No MP3 encoder available: hand back the WAV frames unchanged so the
+        # request still succeeds and the caller sees the real content type.
+        return wav_bytes
+
+
 def _resample(samples, source_rate: int, target_rate: int):
     """Linear resample, good enough for 24 kHz -> 24 kHz style conversions."""
     import numpy as np

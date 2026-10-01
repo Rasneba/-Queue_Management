@@ -17,4 +17,9 @@ python-dotenv>=1.0.0
 # model downloads on first use (~500MB for the default "small" model).
 # faster-whisper>=1.0.0
 
+# Optional: offline Amharic TTS engine (TTS_ENGINE=mms_onnx).
+# NOTE facebook/mms-tts-amh is CC-BY-NC 4.0 -> non-commercial, benchmark only.
+# onnxruntime>=1.17.0
+# lameenc>=1.7.0
+
 

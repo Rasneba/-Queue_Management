@@ -24,7 +24,15 @@ from amharic_normalizer import (
     normalize_for_speech,
     save_lexicon_entry,
 )
-from audio_formats import available_formats, convert, normalize_format
+from audio_formats import available_formats, convert, normalize_format, wav_to_mp3 as _to_mp3
+from tts_engines import (
+    ENGINE_EDGE,
+    ENGINE_MMS_ONNX,
+    active_engine as tts_active_engine,
+    engine_info,
+    license_ok_for_commercial,
+    mms_speak_wav,
+)
 import account
 import account_routes
 from db_routes import attach_db, lifespan
@@ -171,6 +179,8 @@ async def health():
         "styles": list(STYLES.keys()),
         "formats": available_formats(),
         "lexicon_entries": len(load_lexicon()),
+        "engine": engine_info(),
+        "commercial_use_ok": license_ok_for_commercial(),
         "matrix": {
             lang: {g: {a: pick_voice(lang, g, a) for a in AGES} for g in GENDERS}
             for lang in VOICE_MAP
@@ -204,8 +214,25 @@ async def _stream_segment(text: str, voice: str, rate: str, pitch: str, volume: 
     raise last_error if last_error else RuntimeError("no audio returned")
 
 
+async def _stream_segment_offline(text: str, speed: float = 1.0) -> bytes:
+    """Run the offline engine off the event loop and return WAV bytes."""
+    def _run() -> bytes:
+        return mms_speak_wav(text, speed=speed)
+
+    return await asyncio.to_thread(_run)
+
+
+def _rate_to_speed(rate: str) -> float:
+    """edge-tts '+10%' -> offline speed multiplier 1.10."""
+    value = signed(rate, "%", -80, 100)
+    try:
+        return max(0.5, min(2.0, 1.0 + int(value.strip("%")) / 100.0))
+    except (TypeError, ValueError):
+        return 1.0
+
+
 async def synth_mp3(segments, voice: str, volume: str = "+0%", voices: dict | None = None) -> tuple[bytes, list[str]]:
-    """Synthesize each segment and concatenate the MP3 frames.
+    """Synthesize each segment and concatenate the frames.
 
     A single bad segment must not fail the whole request: fragments the engine
     cannot pronounce are skipped and reported as warnings instead.
@@ -213,11 +240,18 @@ async def synth_mp3(segments, voice: str, volume: str = "+0%", voices: dict | No
     Each segment is spoken with its native voice (Amharic vs English/Oromo)
     via the optional lang -> voice map, so English sentences never get an
     Amharic accent. Segments without a mapped language use the default voice.
+
+    When TTS_ENGINE=mms_onnx the offline Amharic model is used instead. It is
+    Amharic-only, so English/Oromo segments still go to edge-tts; those frames
+    are MP3 and are re-encoded to match the offline WAV output.
     """
     volume = signed(volume, "%", -100, 100)
     chunks: list[bytes] = []
     warnings: list[str] = []
     pending_pause = 0
+
+    engine = tts_active_engine()
+    offline_lang = (os.getenv("MMS_LANG") or "am").strip().lower()
 
     for segment in segments:
         text = segment.text
@@ -226,8 +260,16 @@ async def synth_mp3(segments, voice: str, volume: str = "+0%", voices: dict | No
         pending_pause = segment.pause_after
         seg_voice = voices.get(segment.lang, voice) if voices else voice
 
+        use_offline = engine == ENGINE_MMS_ONNX and segment.lang == offline_lang
         try:
-            chunks.append(await _stream_segment(text, seg_voice, segment.rate, segment.pitch, volume))
+            if use_offline:
+                wav = await _stream_segment_offline(text, speed=_rate_to_speed(segment.rate))
+                # Normalize container so concatenation stays valid.
+                chunks.append(await asyncio.to_thread(_to_mp3, wav))
+            else:
+                if engine == ENGINE_MMS_ONNX:
+                    warnings.append(f"segment sent to edge-tts (offline model is {offline_lang}-only): {text[:40]}")
+                chunks.append(await _stream_segment(text, seg_voice, segment.rate, segment.pitch, volume))
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"segment skipped ({type(exc).__name__}): {text[:60]}")
 

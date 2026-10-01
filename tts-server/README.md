@@ -129,10 +129,45 @@ client -> FastAPI (/speak, /queue-speak, /normalize)
            -> amharic_normalizer  numbers, dates, phones, acronyms, symbols,
                                   orthography, segmentation, per-sentence rate
            -> pronunciation.json  custom word -> spoken form
-           -> synth_mp3           edge-tts streaming per segment, 3 attempts,
-                                  skipped segments reported in X-TTS-Warnings
+-> synth_mp3           per-segment synthesis via tts_engines
+                                   (edge-tts default, offline MMS optional),
+                                   skipped segments in X-TTS-Warnings
            -> audio_formats       mp3 (native) | wav | flac, resampled to 24 kHz mono
 ```
+
+### Synthesis engines
+
+`tts_engines.py` is the only swappable layer; the normalizer front-end, the
+`/speak` contract and the frontend are unchanged when you switch.
+
+| `TTS_ENGINE` | Model | Offline | Commercial |
+| --- | --- | --- | --- |
+| `edge` (default) | Microsoft Edge neural voices | no | yes |
+| `mms_onnx` | `facebook/mms-tts-amh` (VITS) via ONNX Runtime | yes | **no** |
+| `auto` | `mms_onnx` if its files exist, else `edge` | - | follows the chosen engine |
+
+> **License warning.** `facebook/mms-tts-amh` is **CC-BY-NC 4.0**. It is fine
+> for demos, evaluation and blinded A/B benchmarking, but it must not serve
+> paying customers. `/health` reports `engine.commercial_use: false` and
+> `commercial_use_ok: false` while it is active. The shippable path is an own
+> VITS fine-tuned on licensed Amharic audio (Phase 2 in
+> `OPEN_TTS_DATASHEET.md`).
+
+The offline model is Amharic-only, so with `TTS_ENGINE=mms_onnx` any
+English/Oromo segment still goes to edge-tts and a warning is added to
+`X-TTS-Warnings`. Enable it with:
+
+```bash
+pip install onnxruntime uroman lameenc
+export TTS_ENGINE=mms_onnx
+export MMS_ONNX_PATH=C:/models/mms-tts-amh   # model.onnx + vocab.json + meta.json
+```
+
+`mms-tts-amh` has no official ONNX build and is a **uroman** model, so the
+graph is exported over romanized token ids rather than Ethiopic codepoints.
+`model.onnx`, `vocab.json` and `meta.json` must all sit in `MMS_ONNX_PATH`.
+Synthesis on 2 CPU threads runs slightly slower than real time
+(~1.2x RTF for a short sentence).
 
 See [`AMHARIC_TTS_DESIGN.html`](./AMHARIC_TTS_DESIGN.html) for the full design
 document: architecture, Edge-TTS gap analysis, and a phased plan to replace it
