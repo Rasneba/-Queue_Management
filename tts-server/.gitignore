@@ -1,0 +1,20 @@
+__pycache__/
+*.pyc
+*.log
+*.err
+.venv/
+venv/
+tts.log
+tts.err
+out/
+dist/
+*.wav
+*.flac
+*.mp3
+
+# Never commit credentials (DATABASE_URL etc.)
+.env
+.env.local
+!.env.example
+
+node_modules/

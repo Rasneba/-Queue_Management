@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neba — Product Roadmap, Data Dictionary &amp; Improvement Backlog</title>
+<style>
+  :root {
+    --bg: #ffffff; --soft: #f4f6f8; --line: #e2e6ec; --line-strong: #cdd3dd;
+    --text: #16191f; --muted: #5b6472; --muted-2: #8a93a3;
+    --brand: #177245; --brand-deep: #115c37; --brand-tint: #e9f3ed;
+    --amber: #b45309; --amber-tint: #faf3e7; --danger: #c0362c; --danger-tint: #fbeeec;
+    --info: #1d5bbf; --info-tint: #eaf1fc; --code: #1c2333;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: Inter, "Noto Sans Ethiopic", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.7; }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.doc { padding: 56px 0 8px; border-bottom: 2px solid var(--text); margin-bottom: 8px; }
+  .kicker { color: var(--brand); font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+  h1 { font-size: clamp(30px, 5vw, 46px); letter-spacing: -.02em; line-height: 1.1; margin: 12px 0 8px; }
+  .sub { color: var(--muted); font-size: 16px; max-width: 640px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--muted-2); font-size: 12px; margin: 20px 0 8px; }
+  nav.toc { background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px; margin: 28px 0 8px; }
+  nav.toc strong { font-size: 12px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  nav.toc ol { margin: 10px 0 0; padding-left: 20px; color: var(--muted); font-size: 14px; }
+  nav.toc a { color: var(--brand-deep); font-weight: 600; }
+  h2 { font-size: 24px; letter-spacing: -.01em; margin: 56px 0 12px; padding-top: 24px; border-top: 1px solid var(--line); }
+  h3 { font-size: 17px; margin: 30px 0 8px; }
+  p, li { font-size: 14px; color: #2a2f38; }
+  li { margin-bottom: 6px; }
+  li::marker { color: var(--brand); }
+  code { background: var(--soft); border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; font-size: 12.5px; font-family: "SFMono-Regular", Consolas, monospace; }
+  pre { background: var(--code); color: #e6ebf5; border-radius: 10px; padding: 20px; overflow: auto; font-size: 12.5px; line-height: 1.7; }
+  pre .c { color: #8b98ad; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 8px; font-size: 13px; }
+  th { text-align: left; background: var(--soft); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 12px; border: 1px solid var(--line); }
+  td { padding: 10px 12px; border: 1px solid var(--line); vertical-align: top; }
+  td:first-child { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12px; white-space: nowrap; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+  .p-high { background: var(--danger-tint); color: var(--danger); }
+  .p-med { background: var(--amber-tint); color: var(--amber); }
+  .p-low { background: var(--soft); color: var(--muted); }
+  .p-done { background: var(--brand-tint); color: var(--brand-deep); }
+  .note { border: 1px solid #c9d8e8; background: var(--info-tint); border-radius: 10px; padding: 14px 18px; font-size: 13px; margin: 16px 0; }
+  .warn { border: 1px solid #ead9bd; background: var(--amber-tint); border-radius: 10px; padding: 14px 18px; font-size: 13px; margin: 16px 0; }
+  .ok { border: 1px solid #c4ddcd; background: var(--brand-tint); border-radius: 10px; padding: 14px 18px; font-size: 13px; margin: 16px 0; }
+  footer.doc { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted-2); font-size: 12px; }
+  @media (max-width: 640px) { table { font-size: 12px; } td:first-child { white-space: normal; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="kicker">Neba &middot; Amharic Text-to-Speech</div>
+  <h1>Product Roadmap, Data Dictionary &amp; Improvement Backlog</h1>
+  <p class="sub">The working reference for future development: what exists today, how the data fits together,
+    what is known to be unfinished, and what to build next — in priority order.</p>
+  <div class="meta"><span>Status: living document</span><span>Scope: standalone TTS repo only (no QMS code)</span><span>Stack: FastAPI + vanilla JS + Neon Postgres</span></div>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#inventory">System inventory (as built)</a></li>
+    <li><a href="#hosting">Hosting map &amp; environments</a></li>
+    <li><a href="#dictionary">Data dictionary</a></li>
+    <li><a href="#metering">Credit &amp; metering rules</a></li>
+    <li><a href="#debt">Known limitations &amp; tech debt</a></li>
+    <li><a href="#backlog">Improvement backlog (prioritized)</a></li>
+    <li><a href="#conventions">How to add a feature (conventions)</a></li>
+    <li><a href="#verify">Verification checklist</a></li>
+  </ol>
+</nav>
+
+<h2 id="inventory">1. System inventory (as built)</h2>
+
+<h3>Backend endpoints (FastAPI, <code>server.py</code>)</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th><th>Auth</th></tr>
+  <tr><td>GET /health</td><td>Voices, genders, ages, styles, formats, lexicon size</td><td>none</td></tr>
+  <tr><td>POST /speak</td><td>Synthesize text to MP3/WAV/FLAC; charges credits; writes history</td><td>optional (anonymous allowed, not billed)</td></tr>
+  <tr><td>POST /normalize</td><td>Preview Amharic normalization (numbers, dates, currency) without synthesizing</td><td>none</td></tr>
+  <tr><td>GET /lexicon</td><td>List pronunciation overrides</td><td>none</td></tr>
+  <tr><td>POST /lexicon</td><td>Add a word &rarr; pronunciation override</td><td>none</td></tr>
+  <tr><td>POST /queue-speak</td><td>Batch synthesis, concatenated audio</td><td>none</td></tr>
+  <tr><td>POST /print-ticket</td><td>Queue-ticket QR print (Windows/pywin32 only)</td><td>none</td></tr>
+  <tr><td>GET /test</td><td>Internal operator console (full voice controls)</td><td>none</td></tr>
+  <tr><td>GET /db/health</td><td>Neon connectivity + Postgres version</td><td>none</td></tr>
+</table>
+
+<h3>Account endpoints (<code>account_routes.py</code>, mounted at root)</h3>
+<table>
+  <tr><th>Method &amp; path</th><th>Purpose</th><th>Auth</th></tr>
+  <tr><td>POST /auth/register</td><td>Create user, 10,000 signup credits, return session token</td><td>none (409 on duplicate)</td></tr>
+  <tr><td>POST /auth/login</td><td>Verify password, return session token (401 on bad password)</td><td>none</td></tr>
+  <tr><td>POST /auth/logout</td><td>Revoke the calling session</td><td>Bearer</td></tr>
+  <tr><td>GET /me</td><td>Profile + balance</td><td>Bearer</td></tr>
+  <tr><td>GET /credits</td><td>Balance + ledger entries</td><td>Bearer</td></tr>
+  <tr><td>GET /usage</td><td>Totals + daily character/credit aggregates</td><td>Bearer</td></tr>
+  <tr><td>GET /history?limit=25</td><td>Synthesis history, newest first</td><td>Bearer</td></tr>
+  <tr><td>GET /keys</td><td>List API keys (masked)</td><td>Bearer</td></tr>
+  <tr><td>POST /keys</td><td>Create key (secret shown once)</td><td>Bearer</td></tr>
+  <tr><td>DELETE /keys/{id}</td><td>Revoke key (soft revoke, keeps row)</td><td>Bearer</td></tr>
+</table>
+
+<h3>Frontend routes (vanilla JS router, <code>frontend/app.js</code>)</h3>
+<p>Public: <code>/</code>, <code>/features</code>, <code>/demo</code>, <code>/pricing</code>, <code>/docs</code>,
+<code>/api</code>, <code>/about</code>, <code>/contact</code>, <code>/login</code>, <code>/register</code>,
+<code>/forgot-password</code> (message only).
+Workspace: <code>/dashboard</code>, <code>/dashboard/tts</code>, <code>/dashboard/history</code>,
+<code>/dashboard/credits</code>, <code>/dashboard/usage</code>, <code>/dashboard/api-keys</code>,
+<code>/dashboard/billing</code>, <code>/dashboard/docs</code>, <code>/dashboard/settings</code>.
+Admin scaffold (frontend-only): <code>/admin</code>, <code>/admin/users</code>, <code>/admin/payments</code>,
+<code>/admin/tts-jobs</code>, <code>/admin/usage</code>, <code>/admin/audit-logs</code>.</p>
+
+<h3>Environment variables</h3>
+<table>
+  <tr><th>Variable</th><th>Where</th><th>Meaning</th></tr>
+  <tr><td>DATABASE_URL</td><td>API host (Render) / local <code>.env</code></td><td>Neon Postgres connection string. Empty = accounts disabled, anonymous TTS only. Never in git, never in a <code>VITE_</code> var.</td></tr>
+  <tr><td>SESSION_SECRET</td><td>API host</td><td>Token-signing secret. Default is an insecure dev value — must be set in production.</td></tr>
+  <tr><td>PORT / TTS_PORT / TTS_HOST</td><td>API host</td><td>Port/host binding. <code>PORT</code> (platform-injected) wins; host auto-binds <code>0.0.0.0</code> when <code>PORT</code> is set, loopback otherwise.</td></tr>
+  <tr><td>VITE_API_BASE_URL</td><td>Vercel (optional)</td><td>Baked into <code>dist/assets/config.js</code> at build time. If unset, the build falls back to the hosted API URL; set to <code>none</code> for a preview-only bundle.</td></tr>
+</table>
+
+<h2 id="hosting">2. Hosting map &amp; environments</h2>
+<table>
+  <tr><th>Piece</th><th>Host</th><th>Notes</th></tr>
+  <tr><td>Website (static)</td><td>Vercel, <code>nebaamharictts.vercel.app</code></td><td>Build: <code>node scripts/build.mjs</code> &rarr; <code>dist/</code>. No server code runs here.</td></tr>
+  <tr><td>Speech API</td><td>Render free web service, <code>neba-tts-api.onrender.com</code></td><td>Blueprint: <code>render.yaml</code>. Sleeps after 15 idle min (~1 min cold start). Ephemeral filesystem.</td></tr>
+  <tr><td>Database</td><td>Neon Postgres 18</td><td>Durable store. Use the pooled host; least-privilege app role, not owner.</td></tr>
+  <tr><td>Local dev</td><td><code>python server.py</code> on 127.0.0.1:8765</td><td>Reads <code>.env</code> (gitignored). <code>.env.example</code> is the tracked template.</td></tr>
+</table>
+<div class="warn"><strong>Free-tier realities:</strong> Render sleeps (cold starts), Render's disk is wiped on restart
+(<code>pronunciation.json</code> edits do not survive), and the service has no auth or rate limiting — acceptable for a
+demo, not for paid traffic.</div>
+
+<h2 id="dictionary">3. Data dictionary</h2>
+<p>Schema source of truth: <code>schema.sql</code> (idempotent, applied by <code>migrate.py</code>).
+All tables use <code>BIGSERIAL id</code> primary keys and <code>TIMESTAMPTZ created_at</code>.</p>
+
+<h3><code>users</code> — one row per registered account</h3>
+<table>
+  <tr><th>Column</th><th>Type &amp; constraints</th><th>Meaning</th></tr>
+  <tr><td>id</td><td>BIGSERIAL PK</td><td>Internal user id; referenced by all child tables.</td></tr>
+  <tr><td>email</td><td>TEXT UNIQUE NOT NULL</td><td>Login identity. Uniqueness enforced in DB (409 on conflict).</td></tr>
+  <tr><td>name</td><td>TEXT NOT NULL DEFAULT ''</td><td>Display name shown in the dashboard greeting.</td></tr>
+  <tr><td>password_hash</td><td>TEXT NOT NULL</td><td>PBKDF2-HMAC-SHA256, 210,000 iterations, per-user salt. Plaintext never stored.</td></tr>
+  <tr><td>credits_balance</td><td>BIGINT DEFAULT 10000, CHECK &ge; 0</td><td> Cached spendable balance; the <code>credit_ledger</code> is the audit trail. Starts at 10,000 on signup.</td></tr>
+  <tr><td>is_active</td><td>BOOLEAN DEFAULT TRUE</td><td>Reserved for suspension. Not yet enforced in middleware.</td></tr>
+  <tr><td>created_at / updated_at</td><td>TIMESTAMPTZ DEFAULT now()</td><td>Lifecycle timestamps.</td></tr>
+</table>
+
+<h3><code>sessions</code> — login tokens (opaque, hashed)</h3>
+<table>
+  <tr><th>Column</th><th>Type &amp; constraints</th><th>Meaning</th></tr>
+  <tr><td>user_id</td><td>BIGINT FK &rarr; users, ON DELETE CASCADE</td><td>Owner. Indexed.</td></tr>
+  <tr><td>token_hash</td><td>TEXT UNIQUE NOT NULL</td><td>SHA-256 of the bearer token. The raw token is shown once and never stored.</td></tr>
+  <tr><td>expires_at</td><td>TIMESTAMPTZ NOT NULL</td><td>Expiry (30 days). Indexed for sweeping.</td></tr>
+  <tr><td>revoked_at</td><td>TIMESTAMPTZ NULL</td><td>Set by logout; NULL = live.</td></tr>
+</table>
+
+<h3><code>api_keys</code> — developer keys (hashed, revocable)</h3>
+<table>
+  <tr><th>Column</th><th>Type &amp; constraints</th><th>Meaning</th></tr>
+  <tr><td>user_id</td><td>BIGINT FK &rarr; users, CASCADE</td><td>Owner. Indexed.</td></tr>
+  <tr><td>name</td><td>TEXT DEFAULT 'default'</td><td>User label shown in the dashboard.</td></tr>
+  <tr><td>key_prefix</td><td>TEXT NOT NULL</td><td>First characters shown masked in the UI (e.g. <code>sk_live_ab12&hellip;</code>).</td></tr>
+  <tr><td>key_hash</td><td>TEXT UNIQUE NOT NULL</td><td>SHA-256 of the secret. Secret shown once at creation via <code>X-Api-Key</code> or Bearer.</td></tr>
+  <tr><td>scopes</td><td>TEXT DEFAULT 'tts'</td><td>Reserved. Not enforced yet — all keys have full TTS scope.</td></tr>
+  <tr><td>last_used_at / revoked_at</td><td>TIMESTAMPTZ NULL</td><td>Usage tracking and soft revocation.</td></tr>
+</table>
+
+<h3><code>credit_ledger</code> — append-only money trail</h3>
+<table>
+  <tr><th>Column</th><th>Type &amp; constraints</th><th>Meaning</th></tr>
+  <tr><td>user_id</td><td>BIGINT FK &rarr; users, CASCADE</td><td>Owner. Indexed on (user, created DESC).</td></tr>
+  <tr><td>delta</td><td>BIGINT NOT NULL</td><td>Signed change: negative = spend, positive = grant. Never zero in practice.</td></tr>
+  <tr><td>reason</td><td>TEXT NOT NULL</td><td>Machine reason. Observed values: <code>signup</code> (+10000), <code>speak</code> (−chars).</td></tr>
+  <tr><td>balance_after</td><td>BIGINT NOT NULL</td><td>Balance snapshot after applying delta. Reconciles with <code>users.credits_balance</code>.</td></tr>
+</table>
+
+<h3><code>usage_events</code> — aggregate-friendly counters</h3>
+<table>
+  <tr><th>Column</th><th>Type &amp; constraints</th><th>Meaning</th></tr>
+  <tr><td>user_id</td><td>BIGINT FK &rarr; users, CASCADE</td><td>Owner. Indexed on (user, created DESC).</td></tr>
+  <tr><td>kind</td><td>TEXT DEFAULT 'speak'</td><td>Event type. Only <code>speak</code> is written today; reserved for <code>normalize</code>, <code>queue</code>.</td></tr>
+  <tr><td>characters / credits</td><td>INTEGER DEFAULT 0</td><td>Input length and cost charged. Powers <code>GET /usage</code> totals and daily series.</td></tr>
+</table>
+
+<h3><code>tts_requests</code> — per-generation history (user-visible)</h3>
+<table>
+  <tr><th>Column</th><th>Type &amp; constraints</th><th>Meaning</th></tr>
+  <tr><td>user_id</td><td>BIGINT FK &rarr; users, ON DELETE <strong>SET NULL</strong></td><td>NULL = anonymous or deleted-user row. Survives account deletion for aggregate stats.</td></tr>
+  <tr><td>request_id</td><td>TEXT NULL</td><td>Client-supplied idempotency key (<code>X-Request-Id</code>). Rarely set; enforce uniqueness per user when idempotency ships.</td></tr>
+  <tr><td>input_text / spoken_text</td><td>TEXT</td><td>Raw input and post-normalization text the engine actually voiced.</td></tr>
+  <tr><td>lang / voice / gender / age / style</td><td>TEXT</td><td>Voice selection as requested (e.g. <code>am</code>, <code>am-ET-MekdesNeural</code>, <code>female</code>, <code>adult</code>, <code>professional</code>).</td></tr>
+  <tr><td>audio_format</td><td>TEXT DEFAULT 'mp3'</td><td><code>mp3</code> | <code>wav</code> | <code>flac</code>.</td></tr>
+  <tr><td>characters / credits / audio_bytes</td><td>INTEGER DEFAULT 0</td><td>Billing inputs and output size shown in History.</td></tr>
+  <tr><td>duration_ms / warnings</td><td>INTEGER / TEXT, nullable</td><td>Reserved: engine-reported duration and normalization warnings. Currently NULL.</td></tr>
+</table>
+<div class="note"><strong>Relationships at a glance:</strong> <code>users</code> 1&rarr;N <code>sessions</code>,
+<code>api_keys</code>, <code>credit_ledger</code>, <code>usage_events</code>; <code>users</code> 1&rarr;N
+<code>tts_requests</code> with SET NULL. Deletes cascade everywhere except history, which is intentionally retained.</div>
+
+<h2 id="metering">4. Credit &amp; metering rules</h2>
+<ul>
+  <li><strong>Unit:</strong> 1 character = 1 credit (<code>CREDITS_PER_CHARACTER = 1</code>).</li>
+  <li><strong>Signup grant:</strong> +10,000 (<code>reason = 'signup'</code>).</li>
+  <li><strong>Charge point:</strong> inside <code>record_usage()</code> on every <code>/speak</code> — including
+    <strong>cache hits</strong> (fixed: previously repeats were free and unlogged).</li>
+  <li><strong>Insufficient balance:</strong> <code>account.charge()</code> raises <code>ValueError</code>, surfaced as
+    <strong>HTTP 402</strong>. Other DB failures are best-effort (audio still served) — a deliberate demo tradeoff.</li>
+  <li><strong>Anonymous callers</strong> are never billed and never written to the DB (abuse guard).</li>
+  <li><strong>Frontend display:</strong> header badge updates in place after generation; History re-renders from
+    <code>GET /history</code>; logged-out viewers see clearly-separated demo placeholders.</li>
+</ul>
+
+<h2 id="debt">5. Known limitations &amp; tech debt</h2>
+<p>Verified during audits; each item is a future ticket, not a rumor.</p>
+<table>
+  <tr><th>#</th><th>Limitation</th><th>Impact</th></tr>
+  <tr><td>D1</td><td><code>SESSION_TTL_DAYS</code> in <code>.env.example</code> is ignored — <code>account.py</code> hardcodes 30 days.</td><td>Low. Wire the env var through.</td></tr>
+  <tr><td>D2</td><td><code>signing_secret()</code> helper is unused.</td><td>Low. Remove or adopt for token signing.</td></tr>
+  <tr><td>D3</td><td><code>account.charge(None, …)</code> anonymous branch inserts <code>NULL user_id</code> into a <code>NOT NULL</code> column.</td><td>Low (dead path — callers guard first). Fix or delete the branch.</td></tr>
+  <tr><td>D4</td><td><code>pronunciation.json</code> lives on disk; wiped on every Render restart.</td><td>Medium. Move lexicon to Neon.</td></tr>
+  <tr><td>D5</td><td>No rate limiting; <code>/speak</code> + CORS <code>*</code> are public.</td><td>High before paid traffic. Add per-key/IP limits.</td></tr>
+  <tr><td>D6</td><td>No password reset, no email verification (<code>/forgot-password</code> is a message).</td><td>High for real users.</td></tr>
+  <tr><td>D7</td><td>History has no audio playback (<code>history-play</code> shows a toast); audio bytes are not stored.</td><td>Medium. Needs object storage (S3/R2) + URL column.</td></tr>
+  <tr><td>D8</td><td>API key <code>scopes</code> stored but never enforced.</td><td>Medium. Enforce on each call.</td></tr>
+  <tr><td>D9</td><td><code>tts_requests.request_id</code> accepted but not deduplicated.</td><td>Low. Add unique(user, request_id) for idempotent retries.</td></tr>
+  <tr><td>D10</td><td><code>users.is_active</code> never checked (suspended users can still call).</td><td>Medium. One-line middleware check.</td></tr>
+  <tr><td>D11</td><td><code>duration_ms</code> / <code>warnings</code> columns never populated.</td><td>Low. Fill from engine metadata.</td></tr>
+  <tr><td>D12</td><td>Free-tier cold starts (~1 min) after 15 idle minutes.</td><td>Medium UX. Mitigated by in-app notice; paid tier removes it.</td></tr>
+  <tr><td>D13</td><td>Training lineage: any model work derived from <code>mms-tts-amh</code> is CC-BY-NC — commercial release needs own licensed voice data + retrained model.</td><td>Strategic. See <code>AMHARIC_TTS_DESIGN.html</code> §4.</td></tr>
+</table>
+
+<h2 id="backlog">6. Improvement backlog (prioritized)</h2>
+
+<h3><span class="pill p-high">P0 — before charging real money</span></h3>
+<ul>
+  <li><strong>Chapa + Telebirr billing:</strong> verify payments server-side, credit packs on webhook, invoice rows. Frontend billing page already expects this.</li>
+  <li><strong>Rate limiting:</strong> per API key + per IP on <code>/speak</code> (e.g. slowapi or nginx-level), 429 responses the UI already handles generically.</li>
+  <li><strong>Auth hardening:</strong> set a real <code>SESSION_SECRET</code>, enforce <code>is_active</code> (D10), enforce key <code>scopes</code> (D8), rotate any exposed Neon credential to a least-privilege role.</li>
+  <li><strong>Password reset + email verification:</strong> token table + mailer; replaces the <code>/forgot-password</code> placeholder.</li>
+</ul>
+
+<h3><span class="pill p-med">P1 — product depth</span></h3>
+<ul>
+  <li><strong>Stored audio + history playback:</strong> object storage (R2/S3), <code>tts_requests.audio_url</code>, wire <code>history-play</code> to the real file (D7).</li>
+  <li><strong>Lexicon in Postgres:</strong> new <code>lexicon_entries(user_id, word, pronunciation, …)</code> table, per-user overrides, UI management (D4).</li>
+  <li><strong>Admin backend:</strong> replace frontend-only admin scaffold with real user/payment/usage queries + audit log table.</li>
+  <li><strong>Usage alerts &amp; plan enforcement:</strong> monthly quotas, 80%-used notifications, upgrade prompts driven by real <code>/usage</code>.</li>
+  <li><strong>Batch generation UI:</strong> expose <code>/queue-speak</code> in the studio with progress + combined download.</li>
+  <li><strong>Idempotent retries:</strong> unique <code>(user_id, request_id)</code> (D9) so mobile retries never double-charge.</li>
+</ul>
+
+<h3><span class="pill p-low">P2 — growth &amp; ops</span></h3>
+<ul>
+  <li><strong>Own Amharic voice model:</strong> licensed voice data → train/fine-tune VITS → swap behind the same <code>/speak</code> contract. Full plan in <code>AMHARIC_TTS_DESIGN.html</code> §4.</li>
+  <li><strong>More voices &amp; languages:</strong> additional Edge voices, Oromo/English parity in the studio presets.</li>
+  <li><strong>Observability:</strong> structured logs, error tracking, uptime checks on <code>/health</code> + <code>/db/health</code>, Neon branching for staging.</li>
+  <li><strong>CI guardrails:</strong> run <code>render_check.mjs</code> on every PR so a blank-page regression can never ship again.</li>
+  <li><strong>Fill telemetry gaps:</strong> <code>duration_ms</code>, <code>warnings</code> (D11), <code>last_used_at</code> updates.</li>
+  <li><strong>Dark mode (optional):</strong> only if cheap — light remains the default product theme.</li>
+</ul>
+
+<h2 id="conventions">7. How to add a feature (conventions)</h2>
+<ul>
+  <li><strong>New endpoint:</strong> add to <code>server.py</code> (public/TTS) or <code>account_routes.py</code> (authed). Reuse <code>current_user()</code> for auth; return 402 via <code>ValueError</code> from <code>account.charge()</code>.</li>
+  <li><strong>New table:</strong> append <code>CREATE TABLE IF NOT EXISTS</code> to <code>schema.sql</code>, add accessors in the matching module, index <code>(user_id, created_at DESC)</code>.</li>
+  <li><strong>New UI:</strong> vanilla JS in <code>frontend/app.js</code> (route + renderer + <code>attachEvents</code> wiring), styles in <code>frontend/styles.css</code> using existing variables. No bundler: no <code>import</code> of CSS, no <code>import.meta.env</code> — runtime config comes from <code>window.__NEB_CONFIG__</code>.</li>
+  <li><strong>Build output contract:</strong> <code>dist/index.html</code> + <code>dist/assets/{app.js, styles.css, config.js}</code>. Never reference files outside <code>/assets/</code>.</li>
+  <li><strong>Secrets:</strong> server-side only. Anything starting <code>VITE_</code> ships to browsers.</li>
+</ul>
+
+<h2 id="verify">8. Verification checklist</h2>
+<pre><span class="c"># syntax + static build</span>
+node --check frontend/app.js
+npm run build
+<span class="c"># preview-mode render, all routes, zero script errors</span>
+node render_check.mjs dist
+<span class="c"># full flow vs local API: register → speak → credits → history</span>
+python server.py &amp;
+node render_live.mjs dist http://127.0.0.1:8765
+<span class="c"># billing semantics incl. cache hits (must print PASS)</span>
+python test_metering.py http://127.0.0.1:8765
+<span class="c"># account regressions + cleanup test rows afterwards</span>
+python test_accounts.py &amp;&amp; python cleanup_tests.py
+<span class="c"># live deployment check (rendering only, no test data)</span>
+node render_url.mjs https://nebaamharictts.vercel.app/</pre>
+<div class="ok"><strong>Rule of thumb:</strong> if <code>render_check.mjs</code> fails, do not deploy — it is the
+blank-page guard. If <code>test_metering.py</code> fails, do not deploy — billing is wrong.</div>
+
+<footer class="doc">
+  Neba &middot; roadmap &amp; data dictionary. Update this file with every schema change, new endpoint, or closed
+  P0 — stale docs are worse than no docs.
+</footer>
+
+</div>
+</body>
+</html>

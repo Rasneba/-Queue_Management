@@ -1,0 +1,10 @@
+# Deploy the Vercel frontend as a static site. The FastAPI speech engine is a separate service.
+*.py
+requirements.txt
+run.bat
+pronunciation.json
+README.md
+LICENSE
+.venv/
+__pycache__/
+.git/

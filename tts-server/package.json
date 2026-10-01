@@ -1,0 +1,13 @@
+{
+  "name": "neba-amharic-tts-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "python server.py"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

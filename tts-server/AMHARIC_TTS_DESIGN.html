@@ -1,0 +1,2062 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Amharic TTS — Architecture, Analysis & Recommendation to Replace Edge-TTS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #0b122b;
+      --bg-card: #0f183a;
+      --accent: #38bdf8;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans",
+        "Helvetica Neue", sans-serif;
+      background: radial-gradient(
+          ellipse at top,
+          rgba(15, 23, 42, 0.98),
+          rgba(2, 6, 23, 1)
+        )
+        fixed;
+      color: var(--text-primary);
+      line-height: 1.65;
+      scroll-behavior: smooth;
+    }
+    header {
+      background: linear-gradient(
+        180deg,
+        rgba(15, 23, 42, 0.95) 0%,
+        rgba(15, 23, 42, 0.8) 60%,
+        rgba(15, 23, 42, 0.4) 100%
+      );
+      backdrop-filter: blur(12px) saturate(120%);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      box-shadow: 0 10px 80px -40px rgba(56, 189, 248, 0.5);
+    }
+    .navbar-brand {
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text-primary) !important;
+    }
+    .nav-link {
+      color: var(--text-secondary) !important;
+      font-weight: 500;
+      transition: all 0.2s ease;
+    }
+    .nav-link:hover,
+    .nav-link.active {
+      color: var(--text-primary) !important;
+    }
+    main {
+      padding: clamp(1.5rem, 2vw + 1rem, 3rem) 0 clamp(3rem, 2vw + 2rem, 5rem);
+    }
+    .hero {
+      padding: clamp(2rem, 4vw + 1rem, 4.5rem) 0 clamp(1rem, 2vw + 1rem, 2.5rem);
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw + 0.5rem, 3.75rem);
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      font-weight: 800;
+    }
+    .hero p.lead {
+      color: var(--text-secondary);
+      max-width: 72ch;
+    }
+    .badge-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      backdrop-filter: blur(6px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    }
+    .card {
+      background: linear-gradient(
+        180deg,
+        rgba(15, 24, 58, 0.92) 0%,
+        rgba(11, 18, 43, 0.96) 100%
+      );
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      box-shadow: 0 40px 120px -60px rgba(14, 165, 233, 0.45);
+      transition: transform 0.25s ease, border-color 0.25s ease,
+        box-shadow 0.25s ease;
+      height: 100%;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(56, 189, 248, 0.45);
+      box-shadow: 0 60px 140px -60px rgba(14, 165, 233, 0.55);
+    }
+    .card-header {
+      background: transparent;
+      border-bottom: 1px solid var(--border);
+      padding: clamp(1rem, 1vw + 0.5rem, 1.5rem) clamp(1rem, 1vw + 0.5rem, 1.5rem)
+        0.5rem;
+    }
+    .card-body {
+      padding: clamp(1rem, 1vw + 0.5rem, 1.5rem);
+    }
+    .section-title {
+      font-size: clamp(1.25rem, 2vw + 0.5rem, 2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+    .section-subtitle {
+      color: var(--text-secondary);
+      max-width: 80ch;
+      margin-bottom: clamp(1.25rem, 1vw + 0.75rem, 2rem);
+    }
+    table {
+      color: var(--text-primary) !important;
+    }
+    .table {
+      --bs-table-bg: transparent;
+      --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+      --bs-table-border-color: var(--border);
+      --bs-table-color: var(--text-primary);
+    }
+    .table thead th {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.75rem;
+    }
+    .table td,
+    .table th {
+      vertical-align: top;
+      padding: 0.85rem 1rem;
+    }
+    .list-group {
+      --bs-list-group-bg: transparent;
+      --bs-list-group-border-color: var(--border);
+      --bs-list-group-color: var(--text-primary);
+    }
+    .list-group-item {
+      background: rgba(255, 255, 255, 0.02);
+      border-color: var(--border);
+      padding: 0.85rem 1rem 0.85rem 1.25rem;
+    }
+    .list-group-item::before {
+      content: "";
+      position: absolute;
+      left: 0.5rem;
+      top: 1.15rem;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 40% 40%, #38bdf8, #0ea5e9);
+      box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15);
+    }
+    .alert {
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--text-primary);
+      backdrop-filter: blur(8px);
+    }
+    .alert-warning {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+    .alert-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.45);
+    }
+    .alert-success {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.45);
+    }
+    code,
+    pre {
+      font-family: "JetBrains Mono", SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+    }
+    pre {
+      background: rgba(2, 6, 23, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      padding: 1rem 1.25rem;
+      overflow-x: auto;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    .mermaid {
+      background: rgba(2, 6, 23, 0.45);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: clamp(0.75rem, 1vw + 0.5rem, 1.5rem);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+    }
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 2rem 0 2.5rem;
+      color: var(--text-secondary);
+      background: rgba(2, 6, 23, 0.6);
+      backdrop-filter: blur(10px);
+    }
+    .link-underline {
+      color: #38bdf8;
+      text-decoration: none;
+    }
+    .link-underline:hover {
+      text-decoration: underline;
+    }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+    }
+    .grid-highlight {
+      background: radial-gradient(
+        ellipse at top,
+        rgba(14, 165, 233, 0.12),
+        transparent 70%
+      );
+    }
+    @media (max-width: 768px) {
+      .mermaid {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body data-bs-spy="scroll" data-bs-target="#tocNav" data-bs-offset="120">
+  <header>
+    <nav class="navbar navbar-expand-lg">
+      <div class="container-xxl">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="#top">
+          <span class="badge-chip">
+            <i class="bi bi-soundwave"></i>
+            Amharic TTS
+          </span>
+          Architecture & Replacement Strategy
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#tocNav"
+          aria-controls="tocNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="tocNav">
+          <ul class="navbar-nav ms-auto gap-lg-2">
+            <li class="nav-item">
+              <a class="nav-link" href="#executive-summary">Executive Summary</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#current-architecture">Current Architecture</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#edge-tts-analysis">Edge-TTS Analysis</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#own-tts-path">Own TTS Path</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#recommendation">Recommendation</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#roadmap">Roadmap</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#references">References</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+  </header>
+
+  <main id="top">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="container-xxl">
+        <div class="row g-4 align-items-start">
+          <div class="col-12 col-xl-8">
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <span class="badge-chip">
+                <i class="bi bi-diagram-3"></i>
+                Detailed Technical Design
+              </span>
+              <span class="badge-chip">
+                <i class="bi bi-translate"></i>
+                Amharic-First
+              </span>
+              <span class="badge-chip">
+                <i class="bi bi-cpu"></i>
+                On-Prem or Self-Hosted Ready
+              </span>
+              <span class="badge-chip">
+                <i class="bi bi-shield-check"></i>
+                Deterministic Normalizer
+              </span>
+            </div>
+            <h1>
+              Amharic TTS API — Architecture, Gap Analysis &amp; Phased Plan to
+              Replace Edge-TTS With Your Own Model
+            </h1>
+            <p class="lead mt-3">
+              This document maps the implemented <code>tts-server</code>
+              (FastAPI + Edge-TTS + Amharic-first normalization + lexicon +
+              MP3/WAV/FLAC + web panel), evaluates Edge-TTS against Amharic
+              requirements, and gives a detailed, actionable recommendation for
+              replacing it with a self-hostable Amharic TTS with trade-offs,
+              data, training, inference, cost, risks and a phased rollout.
+            </p>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <span class="tag">
+                <i class="bi bi-github"></i>
+                Integrates: yonasab12/amharicNLP
+              </span>
+              <span class="tag">
+                <i class="bi bi-github"></i>
+                Integrates: rasyosef/bert-amharic
+              </span>
+              <span class="tag">
+                <i class="bi bi-mic"></i>
+                MMS, VITS, F5-TTS, FishSpeech, Orpheus, StyleTTS3, Zonos
+              </span>
+              <span class="tag">
+                <i class="bi bi-hdd-network"></i>
+                ONNX, GGUF, vLLM-like TTS runtimes
+              </span>
+            </div>
+          </div>
+          <div class="col-12 col-xl-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="card-title mb-0 d-flex align-items-center gap-2">
+                  <i class="bi bi-info-circle"></i>
+                  Document Snapshot
+                </h5>
+              </div>
+              <div class="card-body">
+                <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+                  <li class="d-flex justify-content-between">
+                    <span class="text-secondary">Repo Scope</span>
+                    <span>tts-server only (pushed)</span>
+                  </li>
+                  <li class="d-flex justify-content-between">
+                    <span class="text-secondary">Engine Today</span>
+                    <span>edge-tts (Microsoft Neural)</span>
+                  </li>
+                  <li class="d-flex justify-content-between">
+                    <span class="text-secondary">Voices (Amharic)</span>
+                    <span>2 (Mekdes F, Ameha M)</span>
+                  </li>
+                  <li class="d-flex justify-content-between">
+                    <span class="text-secondary">Formats</span>
+                    <span>MP3/WAV/FLAC @ 24kHz mono</span>
+                  </li>
+                  <li class="d-flex justify-content-between">
+                    <span class="text-secondary">Hosting</span>
+                    <span>127.0.0.1 default, CPU-friendly</span>
+                  </li>
+                  <li class="d-flex justify-content-between">
+                    <span class="text-secondary">Target</span>
+                    <span>Self-hostable, offline-capable</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXECUTIVE SUMMARY -->
+    <section id="executive-summary" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">1. Executive Summary</h2>
+        <p class="section-subtitle">
+          Your implementation is production-lean: deterministic normalization
+          (numbers, IDs, dates, currency, %, phone, acronyms, orthography),
+          gender×age mapping, styles/prosody, lexicon, downloads + player, and
+          robust segment filtering (prevents “No audio was received”). The main
+          blocker to full Amharic phonetic control is Edge-TTS’s closed G2P
+          (gemination, <code>ፀ/ጸ/ጠ/ተ</code>, <code>ሀ/ኀ/ሐ</code>).
+        </p>
+        <div class="row g-3">
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="d-flex align-items-center gap-2 mb-2">
+                  <i class="bi bi-check-circle text-success"></i>
+                  Keep (Strengths)
+                </h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>Normalization + prosody are yours (portable)</li>
+                  <li>Low ops, no GPU required, works now</li>
+                  <li>Clean API, test panel, cache, WAV/FLAC</li>
+                  <li>Segment-level resilience + 400 for unspeakable text</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="d-flex align-items-center gap-2 mb-2">
+                  <i class="bi bi-exclamation-triangle text-warning"></i>
+                  Pain Points (Edge-TTS)
+                </h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>Closed phoneme/G2P → cannot force gemination/ሀ–ኀ–ሐ</li>
+                  <li>Only 2 Amharic voices; age = rate/pitch only</li>
+                  <li>Oromo male fallback (English)</li>
+                  <li>Cloud-dependent, region/availability, no offline air-gapped</li>
+                  <li>Hard to fine-tune per speaker/domain/accent</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="d-flex align-items-center gap-2 mb-2">
+                  <i class="bi bi-lightbulb text-info"></i>
+                  Recommendation (short)
+                </h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <strong>Phase 0 (Now):</strong> Keep Edge-TTS, add a backend
+                    interface
+                  </li>
+                  <li>
+                    <strong>Phase 1 (1–2 weeks):</strong> MMS-TTS
+                    (<code>facebook/mms-tts-amh</code>) as a
+                    <em>baseline/benchmark</em> — cheap on CPU but
+                    <strong>CC-BY-NC (non-commercial)</strong>
+                  </li>
+                  <li>
+                    <strong>Phase 2 (6–10 weeks):</strong> Train
+                    <strong>your own VITS</strong> on licensed Amharic audio —
+                    the commercially shippable path
+                  </li>
+                  <li>
+                    <strong>Phase 3 (optional):</strong> Zero-shot
+                    (F5-TTS / FishSpeech / Orpheus / Zonos) for per-request voice
+                    cloning
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="alert alert-info mt-3 mb-0">
+          <strong>Key takeaway:</strong> Treat normalization+lexicon+prosody as
+          your permanent “text front-end” (portable). Swap only the TTS
+          <em>backend</em> (engine) behind <code>synth_mp3/prepare</code> via an
+          interface to avoid breaking API/contracts.
+        </div>
+      </div>
+    </section>
+
+    <!-- CURRENT ARCHITECTURE -->
+    <section id="current-architecture" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">2. Current Architecture (As Implemented)</h2>
+        <p class="section-subtitle">
+          Matches your requested diagram exactly, with implementation status
+          (live/optional/open) and data flow through normalization →
+          pronunciation → Edge-TTS → MP3/WAV/FLAC.
+        </p>
+
+        <div class="mermaid mb-3" aria-label="Current architecture diagram">
+%%{init: {'theme':'dark','themeVariables':{'primaryColor':'#0f183a','primaryTextColor':'#e2e8f0','primaryBorderColor':'#38bdf8','lineColor':'#38bdf8','secondaryColor':'#0b122b','tertiaryColor':'#0f172a'}}}%%
+flowchart TB
+  A["Client (Browser / curl / App)"] -->|HTTP/JSON| B["FastAPI Server (server.py)\nEndpoints: /health /test /speak /queue-speak /normalize /lexicon /print-ticket"]
+  B -->|CORS * , Host 127.0.0.1 (env TTS_HOST)| A
+
+  subgraph "Text Processor (Live)"
+    C["amharic_normalizer.py\nNormalize, Orthography, Acronyms, Symbols, IDs, Numbers, Dates, Currency, %, Phone"]
+    D["amharic_numbers.py\nnumber_to_amharic, ticket_to_amharic, queue announcement"]
+    L["pronunciation.json (Lexicon)\nGET/POST /lexicon"]
+  end
+
+  B --> C
+  C --> D
+  C <-->|load/save| L
+
+  subgraph "Prosody & Segmentation (Live)"
+    P["Sentence split, Questions (፧/?), Adaptive rate, Pause, _split_long, drop_unspeakable()"]
+  end
+  C --> P
+
+  subgraph "Optional NLP Layer (Pluggable, Not Wired by Default)"
+    N1["yonasab12/amharicNLP\nCleaner/Normalizer/Tokenizer/Stemmer/POS/Sentence Segmenter"]
+    N2["rasyosef/bert-amharic\nBERT encoders + finetunes (Sentiment/NER)\nUpstream of synthesis (understanding/routing)"]
+  end
+  P -.->|optional integration seam| N1
+  P -.->|entity/extraction/routing| N2
+
+  subgraph "TTS Engine"
+    E["Edge-TTS (Live)\nVoices: am-ET-MekdesNeural (F), am-ET-AmehaNeural (M)\nStyles emulated via rate/pitch"]
+    O["Own TTS Model (Open Slot)\nMMS-TTS / VITS / FastSpeech2 / F5-TTS / FishSpeech / Orpheus / Zonos"]
+  end
+  P -->|"synth_mp3(segments, voice, volume)"| E
+  P -.->|"interface swap (backend)"| O
+
+  subgraph "Audio Conversion & Delivery (Live)"
+    F["audio_formats.py\nMP3 native (edge-tts)\nWAV/FLAC via soundfile @ 24kHz PCM_16 mono\nnormalize_format + convert()"]
+    R["Response + Cache (SPEAK_CACHE)\nContent-Type + Content-Disposition inline filename\nX-TTS-Warnings on skipped segments"]
+  end
+  E -->|"MP3 bytes per segment + concat"| F
+  O -.->|"WAV/16k–24k or MP3"| F
+  F --> R
+  R --> A
+
+  subgraph "UI (Live)"
+    T["/test HTML Panel\nLanguage/Gender/Age/Style/Rate/Pitch/Volume/Pause/Adaptive/Format\nPlayer + Download, Normalize Preview, Queue Demo"]
+  end
+  B --> T
+        </div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="mb-0">Request Flow (Happy Path)</h5>
+              </div>
+              <div class="card-body">
+                <ol class="mb-0 d-flex flex-column gap-2 small">
+                  <li>
+                    <code>POST /speak</code> → validate (Pydantic), build
+                    cache key
+                  </li>
+                  <li>
+                    <code>pick_voice(lang,gender,age)</code> + age tuning
+                    (rate/pitch deltas)
+                  </li>
+                  <li>
+                    <code>prepare(text,req)</code> →
+                    <code>normalize_for_speech(...)</code> (normalization +
+                    prosody, drops unspeakable)
+                  </li>
+                  <li>
+                    <code>synth_mp3(segments,...)</code> calls Edge-TTS per
+                    segment (with pause prefix <code>።</code>*n or <code>ፚ</code>
+                    handled), retries (3x), concat MP3
+                  </li>
+                  <li>
+                    <code>convert(mp3,fmt)</code> → WAV/FLAC via soundfile (24kHz
+                    mono PCM_16)
+                  </li>
+                  <li>Return audio bytes + headers (+ warnings if segments skipped)</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="mb-0">Key Implementation Notes</h5>
+              </div>
+              <div class="card-body">
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <strong>Deterministic front-end:</strong> normalization +
+                    lexicon + prosody are engine-agnostic (keep this on swap)
+                  </li>
+                  <li>
+                    <strong>Resilient:</strong> <code>has_speech()</code> strips
+                    Ethiopic/punct/whitespace; <code>drop_unspeakable()</code>
+                    carries pending pauses to next speakable segment; returns
+                    400 “No speakable content found…” instead of 500
+                  </li>
+                  <li>
+                    <strong>Signed prosody:</strong> uses <code>+0%</code>/<code>+0Hz</code>
+                    (fixes Edge signed-value edge cases)
+                  </li>
+                  <li>
+                    <strong>ID expansion order:</strong> <code>_expand_ids()</code>
+                    before generic number expansion (fixes <code>P-42</code>)
+                  </li>
+                  <li>
+                    <strong>Whole-token question detection:</strong> avoids false
+                    <code>፧</code> (e.g. <code>ስማንያ</code>)
+                  </li>
+                  <li>
+                    <strong>Security:</strong> binds <code>127.0.0.1</code> by
+                    default (override <code>TTS_HOST</code>), CORS open, no auth
+                    (harden before external exposure)
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EDGE-TTS ANALYSIS -->
+    <section id="edge-tts-analysis" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">3. Edge-TTS Analysis (Strengths, Weaknesses, Fit for Amharic)</h2>
+        <p class="section-subtitle">
+          Edge-TTS is pragmatic and high-availability today. For Amharic
+          phonetics (gemination, glottal/velar fricatives, script-specific
+          pronunciation) it’s a black box (Microsoft’s neural G2P + vocoder).
+        </p>
+
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="d-flex align-items-center gap-2 mb-2 text-success">
+                  <i class="bi bi-plus-circle"></i>
+                  Strengths
+                </h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>Excellent SSML-lite prosody (rate/pitch/volume), low latency, stable</li>
+                  <li>No local GPU required, CPU-light, easy to call</li>
+                  <li>Natural intonation for many languages, segment streaming works</li>
+                  <li>MP3 native, simple integration, reliable in CI/local</li>
+                  <li>Zero training/hosting infra today</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="d-flex align-items-center gap-2 mb-2 text-danger">
+                  <i class="bi bi-dash-circle"></i>
+                  Weaknesses / Limitations
+                </h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <strong>Closed G2P/phonemes:</strong> cannot force true
+                    gemination, distinguish <code>ፀ/ጸ/ጠ/ተ</code>,
+                    <code>ሀ/ኀ/ሐ</code> reliably at phoneme level
+                  </li>
+                  <li>
+                    <strong>Voice inventory:</strong> 2 Amharic neural voices
+                    only; age = emulated (rate/pitch)
+                  </li>
+                  <li>
+                    <strong>Coverage:</strong> Oromo male fallback to English
+                  </li>
+                  <li>
+                    <strong>Offline/air-gapped:</strong> requires Microsoft
+                    endpoint (cloud-dependent). Terms/availability can change
+                  </li>
+                  <li>
+                    <strong>Customization:</strong> no per-speaker fine-tune,
+                    no domain lexicon baked at phoneme level, no voice cloning
+                    control, no local model export
+                  </li>
+                  <li>
+                    <strong>Determinism/quotas:</strong> transient
+                    <code>NoAudioReceived/ConnectionTimeout</code> possible
+                    (handled with retries + segment skipping)
+                  </li>
+                  <li>
+                    <strong>PII/data residency:</strong> synthesis calls leave
+                    your machine to Microsoft (policy-dependent for prod)
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-header">
+            <h5 class="mb-0">Amharic-Specific Fit Assessment</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-striped align-middle">
+                <thead>
+                  <tr>
+                    <th>Requirement</th>
+                    <th>Edge-TTS</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Read numbers/IDs/dates/currency/%/phone correctly</td>
+                    <td>
+                      <span class="badge text-bg-success">Good</span>
+                    </td>
+                    <td>
+                      Your normalization front-end fixes most (pre-expands to
+                      spoken Amharic) — this is the right split
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Technical terms/acronyms (ERP, IT, SMS, API)</td>
+                    <td>
+                      <span class="badge text-bg-warning">Mixed</span>
+                    </td>
+                    <td>
+                      Handled well via lexicon + acronym table (applied before
+                      engine)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Gemination (length) e.g. ተቀላቀለ vs forms</td>
+                    <td>
+                      <span class="badge text-bg-danger">Weak</span>
+                    </td>
+                    <td>
+                      G2P-internal; cannot force phonemic length reliably
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Distinguish <code>ፀ/ጸ/ጠ/ተ</code>, <code>ሀ/ኀ/ሐ</code>
+                    </td>
+                    <td>
+                      <span class="badge text-bg-danger">Weak</span>
+                    </td>
+                    <td>
+                      Context-dependent in Edge voices; orthography rules help
+                      but not phoneme-level
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Consistent pronunciation of names/depts</td>
+                    <td>
+                      <span class="badge text-bg-success">Good</span>
+                    </td>
+                    <td>
+                      <code>/lexicon</code> (word→spoken) works well as a
+                      post-normalization override
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Styles/emotion</td>
+                    <td>
+                      <span class="badge text-bg-warning">Emulated</span>
+                    </td>
+                    <td>Rate/pitch only (not trained emotional models)</td>
+                  </tr>
+                  <tr>
+                    <td>Multiple speakers/accents, voice cloning</td>
+                    <td>
+                      <span class="badge text-bg-secondary">None</span>
+                    </td>
+                    <td>Not exposed</td>
+                  </tr>
+                  <tr>
+                    <td>Offline/air-gapped, on-prem, data residency</td>
+                    <td>
+                      <span class="badge text-bg-danger">No</span>
+                    </td>
+                    <td>Cloud call required</td>
+                  </tr>
+                  <tr>
+                    <td>Cost at scale / rate limits</td>
+                    <td>
+                      <span class="badge text-bg-warning">Variable</span>
+                    </td>
+                    <td>Unofficial API; can throttle under load</td>
+                  </tr>
+                  <tr>
+                    <td>Phoneme/IPA control, TTS research/fine-tune</td>
+                    <td>
+                      <span class="badge text-bg-secondary">None</span>
+                    </td>
+                    <td>Black box</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OWN TTS PATH -->
+    <section id="own-tts-path" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">4. Path to Your Own Amharic TTS (Detailed)</h2>
+        <p class="section-subtitle">
+          Goal: self-hostable (CPU or GPU), keep your text front-end
+          (normalizer+lexicon+prosody), swap backend behind a small TTS
+          interface. Below are practical model families, data, G2P, runtimes,
+          trade-offs and hardware.
+        </p>
+
+        <!-- 4.1 Data -->
+        <h3 class="h4 mt-4">4.1 Data Sources (Amharic Speech+Text)</h3>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Dataset</th>
+                <th>Type</th>
+                <th>Size/Clips</th>
+                <th>License</th>
+                <th>Use Case</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://huggingface.co/datasets/snapwre/amharic-speech"
+                    target="_blank"
+                    rel="noopener"
+                    >snapwre/amharic-speech</a
+                  >
+                </td>
+                <td>Read speech + transcripts</td>
+                <td>~16.9k clips</td>
+                <td>CC-BY-4.0</td>
+                <td>ASR/TTS starter, cleaning/validation</td>
+                <td>Good, crowdsourced; align text/audio, trim silence</td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/getalp/ALFFA_PUBLIC"
+                    target="_blank"
+                    rel="noopener"
+                    >ALFFA/Amharic Readspeech</a
+                  >
+                </td>
+                <td>Read speech</td>
+                <td>Medium</td>
+                <td>Research/varied</td>
+                <td>ASR eval + TTS base</td>
+                <td>Common benchmark (WER/CER refs)</td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://huggingface.co/datasets/DVoice/Amharic_Speech_Dataset"
+                    target="_blank"
+                    rel="noopener"
+                    >DVoice/Amharic</a
+                  >
+                </td>
+                <td>Speech corpora</td>
+                <td>Varied</td>
+                <td>Check per subset</td>
+                <td>Multi-speaker, augmentation</td>
+                <td>Useful for robustness</td>
+              </tr>
+              <tr>
+                <td>Bible/audio books, radio, audiobooks</td>
+                <td>High-quality narration</td>
+                <td>Hours–tens of hours</td>
+                <td>
+                  <span class="text-warning">License-critical</span>
+                </td>
+                <td>Single/multi-speaker TTS training</td>
+                <td>
+                  Clean, consistent; verify commercial/public-domain rights
+                  first
+                </td>
+              </tr>
+              <tr>
+                <td>In-house call center/announcements</td>
+                <td>Domain (queue/tickets)</td>
+                <td>1–10h target</td>
+                <td>Your own</td>
+                <td>Domain adaptation (best for natural queue audio)</td>
+                <td>Highest ROI for your exact use case</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="alert alert-warning mt-2">
+          <strong>Data hygiene:</strong> normalize transcripts with your
+          <code>amharic_normalizer</code>, strip HTML/annotations, trim silence,
+          filter duration (1–15s), speaker-aware splits, deduplicate,
+          check Unicode, validate alignment. Never train on unlicensed audio.
+        </div>
+
+        <!-- 4.2 G2P / Phonemizer (Amharic) -->
+        <h3 class="h4 mt-4">4.2 G2P / Phonemizer (Control Over Pronunciation)</h3>
+        <p class="small text-secondary">
+          To fix <code>ፀ/ጸ/ጠ/ተ</code>, <code>ሀ/ኀ/ሐ</code>, gemination you need
+          explicit phoneme/grapheme mapping (especially for non-dictionary
+          words). Your lexicon + normalization remain first pass.
+        </p>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Type</th>
+                <th>Status/Amharic</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/hltdi/HornMorpho"
+                    target="_blank"
+                    rel="noopener"
+                    >HornMorpho</a
+                  >
+                </td>
+                <td>FST morphological analyzer/generator</td>
+                <td>Strong (Amharic/Tigrinya/Oromo)</td>
+                <td>
+                  Best for morphology (roots/stems), can inform G2P/lemma;
+                  useful to disambiguate <code>ሀ/ኀ/ሐ</code>, verb forms
+                </td>
+              </tr>
+              <tr>
+                <td>Custom rule-based G2P (Ethiopic)</td>
+                <td>Rules + lexicon</td>
+                <td>High control, maintainable</td>
+                <td>
+                  Combine with <code>pronunciation.json</code> + exception list;
+                  deterministic, offline
+                </td>
+              </tr>
+              <tr>
+                <td>eSpeak-NG</td>
+                <td>Phonemizer</td>
+                <td>Partial/varies</td>
+                <td>Check Amharic rules; often needs extension</td>
+              </tr>
+              <tr>
+                <td>Phonemizer (backends: espeak/segments)</td>
+                <td>Library</td>
+                <td>Pluggable</td>
+                <td>
+                  Good abstraction if you later train phoneme-based models
+                  (FastSpeech2)
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="alert alert-info mt-2">
+          <strong>Recommendation:</strong> Keep grapheme-based end-to-end models
+          (VITS/MMS/F5-TTS) first — they learn G2P implicitly and avoid
+          maintaining a brittle Amharic phoneme set. Move to explicit phonemes
+          only if you hit consistent pronunciation errors after fine-tuning.
+        </div>
+
+        <!-- 4.3 Model Families -->
+        <h3 class="h4 mt-4">4.3 Candidate TTS Models (Self-Hostable)</h3>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Type</th>
+                <th>Amharic Ready</th>
+                <th>CPU</th>
+                <th>GPU (VRAM)</th>
+                <th>Quality</th>
+                <th>Voice Cloning</th>
+                <th>Latency</th>
+                <th>Offline</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://huggingface.co/facebook/mms-tts-amh"
+                    target="_blank"
+                    rel="noopener"
+                    >facebook/mms-tts-amh</a
+                  >
+                </td>
+                <td>VITS (MMS-TTS), 36.3M params</td>
+                <td>
+                  <span class="badge text-bg-success">Native Amharic</span>
+                </td>
+                <td>
+                  <span class="badge text-bg-success">Very Good</span>
+                </td>
+                <td>&lt; 1 GB</td>
+                <td>Good</td>
+                <td>Single-speaker</td>
+                <td>Low</td>
+                <td>Yes</td>
+                <td>
+                  <strong>Not a true drop-in:</strong> the model card requires
+                  input to be
+                  <strong>romanised to Latin script with
+                  <code>uroman</code></strong> first — raw Fidel text produces
+                  garbage. Outputs 16 kHz (needs resampling to 24 kHz).
+                  <span class="text-warning"
+                    >License CC-BY-NC 4.0 → non-commercial.</span
+                  >
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://huggingface.co/models?search=vits+amharic"
+                    target="_blank"
+                    rel="noopener"
+                    >VITS (fine-tuned)</a
+                  >
+                </td>
+                <td>End-to-end (grapheme)</td>
+                <td>
+                  <span class="badge text-bg-success">Very Good</span>
+                </td>
+                <td>OK (slower)</td>
+                <td>4–6 GB (train), 1–2 GB (infer)</td>
+                <td>Excellent (domain)</td>
+                <td>Single-speaker (can multi)</td>
+                <td>Low–Med</td>
+                <td>Yes</td>
+                <td>
+                  Natural, stable, easy to fine-tune on 1–5h clean audio.
+                  Grapheme-based avoids brittle G2P.
+                </td>
+              </tr>
+              <tr>
+                <td>FastSpeech2 + HiFi-GAN/BigVGAN</td>
+                <td>Two-stage (phoneme or grapheme)</td>
+                <td>Good</td>
+                <td>Good</td>
+                <td>4–8 GB train, &lt;2 GB infer</td>
+                <td>Excellent</td>
+                <td>Multi-speaker (emb)</td>
+                <td>Low</td>
+                <td>Yes</td>
+                <td>
+                  Controllable duration/prosody, explicit if you add G2P. More
+                  moving parts vs VITS.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/SWivid/F5-TTS"
+                    target="_blank"
+                    rel="noopener"
+                    >F5-TTS</a
+                  >
+                </td>
+                <td>Flow-matching, zero-shot E2E</td>
+                <td>Good (multilingual)</td>
+                <td>Slower (CPU)</td>
+                <td>8–12 GB (infer), 10–24 GB (train)</td>
+                <td>Excellent</td>
+                <td>
+                  <span class="badge text-bg-success">Strong zero-shot</span>
+                </td>
+                <td>Med</td>
+                <td>Yes</td>
+                <td>
+                  Needs 10–30s reference audio, very natural, great for names
+                  (no per-voice retrain). Needs GPU for real-time.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/fishaudio/fish-speech"
+                    target="_blank"
+                    rel="noopener"
+                    >FishSpeech</a
+                  >
+                </td>
+                <td>Zero-shot (VQ + LLM/flow)</td>
+                <td>Very Good</td>
+                <td>Med–Slow</td>
+                <td>8–14 GB infer</td>
+                <td>Excellent</td>
+                <td>Zero-shot + multi</td>
+                <td>Med</td>
+                <td>Yes</td>
+                <td>Expressive, good prosody, multilingual; GPU recommended.</td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/canopyai/Orpheus-TTS"
+                    target="_blank"
+                    rel="noopener"
+                    >Orpheus-TTS</a
+                  >
+                </td>
+                <td>LLM-based TTS (Llama backbone)</td>
+                <td>Good (multilingual)</td>
+                <td>Slower</td>
+                <td>12–16 GB (7B variants)</td>
+                <td>Excellent (expressive)</td>
+                <td>Zero-shot/style</td>
+                <td>Med–Higher</td>
+                <td>Yes</td>
+                <td>
+                  Very natural rhythm, punctuation-aware; heavier, GPU-first.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/yl4579/StyleTTS3"
+                    target="_blank"
+                    rel="noopener"
+                    >StyleTTS3</a
+                  >
+                </td>
+                <td>Style diffusion + waveform</td>
+                <td>Very Good</td>
+                <td>Good</td>
+                <td>6–10 GB train, 1–3 GB infer</td>
+                <td>Excellent</td>
+                <td>Style transfer/zero-ish</td>
+                <td>Low–Med</td>
+                <td>Yes</td>
+                <td>Natural prosody, efficient vs LLM-TTS.</td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://github.com/Zyphra/Zonos"
+                    target="_blank"
+                    rel="noopener"
+                    >Zonos</a
+                  >
+                </td>
+                <td>Hybrid (transformer+flow)</td>
+                <td>Very Good</td>
+                <td>Heavier</td>
+                <td>12–20 GB (variants)</td>
+                <td>State-of-art (natural)</td>
+                <td>Strong zero-shot</td>
+                <td>Med</td>
+                <td>Yes</td>
+                <td>
+                  High fidelity, expressive; best for “human” queue
+                  announcements but needs GPU.
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://huggingface.co/spaces/mrfakename/MeloTTS"
+                    target="_blank"
+                    rel="noopener"
+                    >MeloTTS</a
+                  >
+                </td>
+                <td>VITS-family (light)</td>
+                <td>Good (growing)</td>
+                <td>
+                  <span class="badge text-bg-success">Very Good</span>
+                </td>
+                <td>0.5–1 GB</td>
+                <td>Good–Very Good</td>
+                <td>Multi-speaker</td>
+                <td>Low</td>
+                <td>Yes</td>
+                <td>CPU-friendly, fast, small footprint.</td>
+              </tr>
+              <tr>
+                <td>
+                  <a
+                    class="link-underline"
+                    href="https://huggingface.co/facebook/mms-tts"
+                    target="_blank"
+                    rel="noopener"
+                    >MMS-TTS (ONNX export)</a
+                  >
+                </td>
+                <td>ONNX export of the above VITS</td>
+                <td>
+                  <span class="badge text-bg-success">Native Amharic</span>
+                </td>
+                <td>
+                  <span class="badge text-bg-success">Excellent</span>
+                </td>
+                <td>&lt; 300–500 MB</td>
+                <td>Good</td>
+                <td>Single</td>
+                <td>Very Low</td>
+                <td>Yes</td>
+                <td>
+                  Best CPU throughput and smallest footprint. Same
+                  <code>uroman</code> + CC-BY-NC constraints as the model above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="alert alert-danger mt-3">
+          <strong>Read this before choosing a model: licensing is the deciding
+          constraint, not quality.</strong> Several of the best-sounding options
+          are <em>non-commercial</em>. Verified from the model cards on
+          2026-09-30 — re-check before any deployment decision.
+        </div>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Model / Tool</th>
+                <th>License</th>
+                <th>Commercial use?</th>
+                <th>Implication for this project</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>facebook/mms-tts-amh</code></td>
+                <td>CC-BY-NC 4.0</td>
+                <td>
+                  <span class="badge text-bg-danger">No</span>
+                </td>
+                <td>
+                  Fine as an internal benchmark / R&amp;D reference. Cannot ship
+                  in a commercial product.
+                </td>
+              </tr>
+              <tr>
+                <td><a class="link-underline" href="https://github.com/coqui-ai/TTS">Coqui TTS</a> (code)</td>
+                <td>MPL-2.0</td>
+                <td>
+                  <span class="badge text-bg-success">Yes</span>
+                </td>
+                <td>
+                  Code is fine to use. Check each <em>bundled model</em> license
+                  separately — they are not all the same.
+                </td>
+              </tr>
+              <tr>
+                <td>VITS trained by you, on your data</td>
+                <td>Yours (VITS: MIT)</td>
+                <td>
+                  <span class="badge text-bg-success">Yes</span>
+                </td>
+                <td>
+                  <strong>The safe path.</strong> Your weights, your license,
+                  your phonetics.
+                </td>
+              </tr>
+              <tr>
+                <td>Zero-shot models (F5-TTS, FishSpeech, Orpheus, Zonos)</td>
+                <td>Mixed — code often permissive, <em>weights often NC</em></td>
+                <td>
+                  <span class="badge text-bg-warning">Verify per model</span>
+                </td>
+                <td>
+                  Check the specific checkpoint you download, not the GitHub
+                  repo license.
+                </td>
+              </tr>
+              <tr>
+                <td><a class="link-underline" href="https://github.com/hltdi/HornMorpho">HornMorpho</a></td>
+                <td>GPL-3.0</td>
+                <td>
+                  <span class="badge text-bg-warning">Copyleft</span>
+                </td>
+                <td>
+                  Safe to call as a separate process; linking it into your own
+                  code triggers GPL obligations.
+                </td>
+              </tr>
+              <tr>
+                <td>Training audio (audiobooks, radio, CC-BY datasets)</td>
+                <td>Varies per source</td>
+                <td>
+                  <span class="badge text-bg-danger">Verify per source</span>
+                </td>
+                <td>
+                  CC-BY requires attribution and share-alike on derivatives.
+                  Public-domain Amharic religious/narrative audio is the
+                  cleanest commercial option.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 4.4 Runtimes / Deployment -->
+        <h3 class="h4 mt-4">4.4 Inference Runtimes, Export, Deployment</h3>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="mb-2">Export Targets (Smaller/Faster)</h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <strong>ONNX:</strong> CPU-first, cross-platform, small
+                    (MMS-TTS ideal). Tools: <code>torch.onnx.export</code>,
+                    <code>optimum</code>, <code>onnxsim</code>
+                  </li>
+                  <li>
+                    <strong>ONNX Runtime (ORT):</strong> CPU/GPU, threads,
+                    session options, low latency
+                  </li>
+                  <li>
+                    <strong>GGUF (llama.cpp family):</strong> Relevant for
+                    LLM-TTS (Orpheus) via <code>llama.cpp</code>/<code>vllm</code>-style
+                    or <code>kokoro</code>/<code>orpheus</code> GGUF builds
+                  </li>
+                  <li>
+                    <strong>TensorRT/DirectML/CoreML:</strong> GPU/edge
+                    acceleration if needed
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="mb-2">Serving Options</h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <strong>FastAPI + local Python:</strong> simplest, drop-in
+                    behind current <code>/speak</code>
+                  </li>
+                  <li>
+                    <strong>Triton Inference Server:</strong> batching,
+                    concurrency, model versioning (GPU fleet)
+                  </li>
+                  <li>
+                    <strong>Coqui/TTS server, API wrapper:</strong> small
+                    microservice
+                  </li>
+                  <li>
+                    <strong>Docker:</strong> reproducible (CPU image small for
+                    MMS-ONNX)
+                  </li>
+                  <li>
+                    <strong>Windows/Linux:</strong> matches current win32 dev +
+                    prod Linux
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4.5 Backend Abstraction (Zero-Disruption Swap) -->
+        <h3 class="h4 mt-4">4.5 Backend Abstraction (Swap Without Breaking API)</h3>
+        <p class="small text-secondary">
+          Keep <code>prepare(...)</code>, <code>normalize_for_speech</code>,
+          <code>/normalize</code>, lexicon, cache, formats exactly as-is. Introduce
+          a TTS backend interface.
+        </p>
+        <pre><code>tts-server/
+  tts_backends/
+    base.py        # Protocol: synth_segments(segments, voice_cfg, volume) -> (audio_bytes, warnings)
+    edge_tts_backend.py     # MP3 out, no preprocessing
+    mms_backend.py          # 16kHz WAV out, needs uroman romanisation first
+    vits_backend.py         # your own model, 24kHz WAV out, no romanisation
+    f5tts_backend.py        # zero-shot, needs speaker reference
+  romanize.py     # uroman wrapper (only for MMS-class backends)
+  config.py        # TTS_BACKEND=edge|mms|vits|f5tts
+server.py          # inject backend (env TTS_BACKEND)</code></pre>
+        <div class="alert alert-success mt-2">
+          <strong>Benefit:</strong> A/B switch via env (<code>TTS_BACKEND</code>),
+          feature flag per environment, instant rollback to Edge-TTS if
+          regression.
+        </div>
+      </div>
+    </section>
+
+    <!-- RECOMMENDATION -->
+    <section id="recommendation" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">5. Recommendation (Concrete &amp; Phased)</h2>
+        <p class="section-subtitle">
+          Best balance: preserve your Amharic text IP (normalizer/lexicon),
+          gain phonetic control + offline + on-prem, minimize risk and compute.
+        </p>
+
+        <div class="row g-3">
+          <div class="col-12">
+            <div class="card border-success">
+              <div class="card-body">
+                <h5 class="d-flex align-items-center gap-2 mb-2 text-success">
+                  <i class="bi bi-trophy"></i>
+                  Primary Recommendation: MMS-TTS (<code>facebook/mms-tts-amh</code>)
+                  as the <u>benchmark</u> — then train your own VITS to ship
+                </h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <strong>Why it is still the right first step:</strong>
+                    native Amharic, pretrained, CPU-excellent, small (36.3M
+                    params; ONNX export ~200–400 MB), fully offline, and it
+                    gives you a <em>concrete quality/latency number to beat</em>
+                    before you spend GPU time.
+                  </li>
+                  <li>
+                    <strong>Two hard constraints, verified from the model card:</strong>
+                    <br />
+                    (a) <strong>CC-BY-NC 4.0</strong> — non-commercial, so it
+                    cannot ship in a paid product.<br />
+                    (b) input must be <strong>romanised with
+                    <code>uroman</code></strong> before it reaches the model;
+                    feeding Fidel script directly produces garbage. This adds a
+                    step your Edge-TTS backend does not need.
+                  </li>
+                  <li>
+                    <strong>Therefore:</strong> use MMS to establish the
+                    evaluation harness, the backend interface and the latency
+                    budget — then fine-tune
+                    <strong>your own VITS on your own licensed Amharic audio</strong>.
+                    That model is commercially yours, works directly on Fidel
+                    text with no uroman step, and can be trained to fix exactly
+                    the gemination / <code>ፀ/ጸ/ጠ/ተ</code> / <code>ሀ/ኀ/ሐ</code>
+                    errors you care about.
+                  </li>
+                  <li>
+                    <strong>Hardware:</strong> MMS benchmarking needs only
+                    2–4 CPU cores and 2–4 GB RAM — no GPU. Own-VITS training is
+                    the first step that needs a GPU.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phased Plan -->
+        <h3 class="h4 mt-4">5.1 Phased Implementation Plan</h3>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Phase</th>
+                <th>Goal</th>
+                <th>Action</th>
+                <th>Success Criteria</th>
+                <th>Effort</th>
+                <th>Risk</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>
+                  <strong>Phase 0</strong><br /><span class="tag"
+                    >Stabilize</span
+                  >
+                </td>
+                <td>Harden current</td>
+                <td>
+                  Keep Edge-TTS. Your punctuation/unspeakable fixes + retries +
+                  127.0.0.1 default are correct. Add backend interface (no
+                  behavior change).
+                </td>
+                <td>All E2E pass, 400s for empty/punct-only, no 500 leaks</td>
+                <td>0.5 day</td>
+                <td>Low</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Phase 1</strong><br /><span class="tag"
+                    >Baseline</span
+                  >
+                </td>
+                <td>MMS-TTS (amh) benchmark</td>
+                <td>
+                  Add <code>mms_onnx_backend.py</code> (transformers
+                  <code>VitsModel</code> for
+                  <code>facebook/mms-tts-amh</code>, optionally exported to ONNX
+                  via <code>optimum/onnxruntime</code>). Add a
+                  <strong>uroman romanisation step</strong> before the model.
+                  Map segments → 16 kHz WAV, return to
+                  <code>audio_formats.convert</code>, env
+                  <code>TTS_BACKEND=mms_onnx</code>. A/B test 50 real Amharic
+                  prompts.
+                </td>
+                <td>
+                  RTF/latency recorded, MOS + WER reference measured, uroman
+                  round-trip verified against your lexicon
+                </td>
+                <td>1–2 weeks</td>
+                <td>Low (license blocks shipping — benchmark only)</td>
+              </tr>
+
+              <tr>
+                <td>
+                  <strong>Phase 1</strong><br /><span class="tag"
+                    >Benchmark</span
+                  >
+                </td>
+                <td>MMS-TTS (amh) baseline</td>
+                <td>
+                  Add <code>mms_backend.py</code> using
+                  <code>transformers.VitsModel</code> +
+                  <code>AutoTokenizer</code>. Add a
+                  <strong>romanisation step</strong> (uroman) before the model —
+                  do not feed Fidel directly. Return 16 kHz WAV, let
+                  <code>audio_formats</code> resample. Set
+                  <code>TTS_BACKEND=mms</code>. Benchmark on 50 real Amharic
+                  prompts.
+                </td>
+                <td>
+                  A measured RTF/latency baseline and a MOS/WER reference point.
+                  Documented uroman round-trip quality on your lexicon words.
+                </td>
+                <td>1–2 weeks</td>
+                <td>Low</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Phase 2</strong><br /><span class="tag"
+                    >Ship</span
+                  >
+                </td>
+                <td>Own VITS fine-tune</td>
+                <td>
+                  Collect <strong>licensed</strong> Amharic audio (3–5 h clean,
+                  ideally your own domain: queue/announcements). Fine-tune VITS
+                  grapheme-based (no uroman). Export ONNX for CPU. Validate
+                  with ASR (wav2vec2 Amharic) + MOS + the critical
+                  numbers/IDs/queue test set.
+                </td>
+                <td>
+                  Own license (commercially shippable), matches or beats Edge and
+                  MMS on your test set, runs offline on CPU
+                </td>
+                <td>6–10 weeks</td>
+                <td>Medium (GPU, data)</td>
+              </tr>
+              <tr>
+                <td>
+                  <strong>Phase 3</strong><br /><span class="tag"
+                    >Zero-Shot/Voice Flex</span
+                  >
+                </td>
+                <td>F5-TTS/FishSpeech/Orpheus/Zonos</td>
+                <td>
+                  Enable zero-shot (reference 10–30s) for names/depts or
+                  multi-speaker. GPU required for real-time. Keep MMS/VITS as
+                  fast CPU fallback.
+                </td>
+                <td>
+                  High naturalness, per-request voice flexibility, covers rare
+                  speakers
+                </td>
+                <td>8–10 weeks</td>
+                <td>Med–High (GPU/compute)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Hardware & Perf -->
+        <h3 class="h4 mt-4">5.2 Hardware, Performance &amp; Cost</h3>
+        <div class="table-responsive">
+          <table class="table table-striped align-middle">
+            <thead>
+              <tr>
+                <th>Backend</th>
+                <th>RTF (Real-Time Factor)</th>
+                <th>CPU Cores</th>
+                <th>RAM</th>
+                <th>GPU/VRAM</th>
+                <th>Inference Latency (short sentence)</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Edge-TTS</td>
+                <td>~0.2–0.5</td>
+                <td>1–2</td>
+                <td>&lt; 256 MB</td>
+                <td>None</td>
+                <td>200–600ms (network)</td>
+                <td>Network-dependent</td>
+              </tr>
+              <tr>
+                <td>MMS-TTS (PyTorch)</td>
+                <td>~0.1–0.3</td>
+                <td>2–4</td>
+                <td>1–2 GB</td>
+                <td>None (optional &lt;1GB)</td>
+                <td>150–350ms</td>
+                <td>Excellent CPU</td>
+              </tr>
+              <tr>
+                <td>MMS-TTS (ONNX + ORT)</td>
+                <td>~0.05–0.15</td>
+                <td>2–4 (threads)</td>
+                <td>300–600 MB</td>
+                <td>None</td>
+                <td>80–250ms</td>
+                <td><strong>Best for on-prem Windows/containers</strong></td>
+              </tr>
+              <tr>
+                <td>VITS (fine-tuned)</td>
+                <td>~0.1–0.25</td>
+                <td>2–4</td>
+                <td>1–2 GB</td>
+                <td>0–2 GB</td>
+                <td>120–300ms</td>
+                <td>Great naturalness</td>
+              </tr>
+              <tr>
+                <td>F5-TTS/FishSpeech</td>
+                <td>~0.3–0.9</td>
+                <td>2–6</td>
+                <td>6–10 GB</td>
+                <td>8–12 GB</td>
+                <td>400–1200ms</td>
+                <td>GPU-first, zero-shot</td>
+              </tr>
+              <tr>
+                <td>Orpheus/Zonos</td>
+                <td>~0.5–1.2+</td>
+                <td>4–8</td>
+                <td>10–16 GB</td>
+                <td>12–20 GB</td>
+                <td>600–1800ms</td>
+                <td>Highest fidelity, heavier</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="alert alert-info mt-2">
+          <strong>Cost/Risk Verdict:</strong> Phase 1 (MMS-ONNX) is cheaper to
+          run (no network egress, no third-party quota), more predictable
+          latency, easier for air-gapped/Windows, and preserves data residency.
+        </div>
+
+        <!-- Evaluation -->
+        <h3 class="h4 mt-4">5.3 Evaluation Plan (Before Swapping Prod)</h3>
+        <div class="row g-3">
+          <div class="col-12 col-md-6 col-lg-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <h6 class="mb-2">Objective (Intelligibility)</h6>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    ASR-based: synth → <code>wav2vec2-large-xlsr-53-amharic</code>
+                    (or <code>speechbrain</code>) → CER/WER vs original
+                  </li>
+                  <li>Focus on numbers, IDs, dates, phone (critical)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 col-lg-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <h6 class="mb-2">Subjective (Naturalness)</h6>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>Blinded A/B: Edge vs MMS vs VITS (5–10 listeners)</li>
+                  <li>MOS (1–5) per category (announcements, free text)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 col-lg-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <h6 class="mb-2">Robustness</h6>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>Mixed Latin/Amharic, acronyms, punctuation-only guard</li>
+                  <li>Long sentences, rare words, question marks (<code>፧</code>)</li>
+                  <li>Queue cases (<code>CARD-102</code>, <code>P-42</code>)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6 col-lg-3">
+            <div class="card h-100">
+              <div class="card-body">
+                <h6 class="mb-2">Non-Functional</h6>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>Latency/RTF, CPU/RAM, cold start, concurrency</li>
+                  <li>Offline air-gapped, Windows stability, cache hit rate</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="alert alert-success mt-3">
+          <strong>Gate to production:</strong> A/B parity (or +0.1 MOS) on your
+          top 50 real prompts + 100% pass on critical cases (numbers/IDs/queue)
+          before flipping default backend.
+        </div>
+      </div>
+    </section>
+
+    <!-- ROADMAP -->
+    <section id="roadmap" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">6. Concrete Next Steps (Actionable Checklist)</h2>
+        <div class="row g-3">
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="mb-0">Week 1 (Phase 0 → Interface)</h5>
+              </div>
+              <div class="card-body">
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>[ ] Add <code>tts_backends/base.py</code> + protocol</li>
+                  <li>
+                    [ ] Wrap current Edge-TTS as
+                    <code>edge_tts_backend.py</code>
+                  </li>
+                  <li>[ ] Inject via <code>TTS_BACKEND</code> (default edge)</li>
+                  <li>
+                    [ ] Keep <code>prepare/normalize_for_speech</code> unchanged
+                  </li>
+                  <li>[ ] Regression: run E2E (all formats + cases)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="mb-0">Weeks 1–2 (Phase 1 MMS-ONNX)</h5>
+              </div>
+              <div class="card-body">
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    [ ] Add <code>mms_onnx_backend.py</code> (ONNX Runtime) for
+                    <code>facebook/mms-tts-amh</code>
+                  </li>
+                  <li>[ ] Return 16–24kHz WAV mono to existing converter</li>
+                  <li>[ ] CPU benchmark (RTF, latency, RAM)</li>
+                  <li>[ ] A/B test 50 real Amharic prompts</li>
+                  <li>[ ] Flip <code>TTS_BACKEND=mms_onnx</code> in dev</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <div class="card h-100">
+              <div class="card-header">
+                <h5 class="mb-0">Weeks 4–6 (Phase 2 Optional)</h5>
+              </div>
+              <div class="card-body">
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    [ ] Curate 1–3h clean audio + transcripts (domain-first)
+                  </li>
+                  <li>[ ] Fine-tune VITS (grapheme), export ONNX</li>
+                  <li>[ ] ASR eval (CER/WER) + MOS + queue cases</li>
+                  <li>[ ] Add backend + canary rollout</li>
+                  <li>[ ] Keep MMS-ONNX as CPU fallback</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-warning mt-3">
+          <strong>Hardening before external exposure:</strong> Add API key/JWT,
+          rate limiting, tighten CORS, request size limits, auth on
+          <code>/lexicon</code> (writes), logging/telemetry, health checks per
+          backend, circuit breaker + graceful fallback to Edge/MMS.
+        </div>
+      </div>
+    </section>
+
+    <!-- REFERENCES -->
+    <section id="references" class="py-4">
+      <div class="container-xxl">
+        <h2 class="section-title">7. References &amp; Suggested Reading</h2>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="mb-2">Projects (integrate/seam)</h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/yonasab12/amharicNLP"
+                      target="_blank"
+                      rel="noopener"
+                      >yonasab12/amharicNLP</a
+                    >
+                    — preprocessing, sentence segmentation, POS, optional
+                    ASR/TTS (MMS)
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/rasyosef/bert-amharic"
+                      target="_blank"
+                      rel="noopener"
+                      >rasyosef/bert-amharic</a
+                    >
+                    — Amharic BERT (understanding/NER/sentiment/routing),
+                    upstream of synthesis
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://huggingface.co/facebook/mms-tts-amh"
+                      target="_blank"
+                      rel="noopener"
+                      >facebook/mms-tts-amh (MMS-TTS)</a
+                    >
+                    — recommended Phase 1 baseline
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/roedoejet/uroman"
+                      target="_blank"
+                      rel="noopener"
+                      >uroman</a
+                    >
+                    — required by the MMS Amharic checkpoint (romanise Fidel →
+                    Latin before synthesis)
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/hltdi/HornMorpho"
+                      target="_blank"
+                      rel="noopener"
+                      >HornMorpho</a
+                    >
+                    — FST morphology (disambiguation/G2P guidance)
+                  </li>
+
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="card h-100">
+              <div class="card-body">
+                <h5 class="mb-2">TTS Models/Runtimes</h5>
+                <ul class="mb-0 small d-flex flex-column gap-2">
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/coqui-ai/TTS"
+                      target="_blank"
+                      rel="noopener"
+                      >Coqui TTS</a
+                    >
+                    — VITS/FastSpeech2 training/inference
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/SWivid/F5-TTS"
+                      target="_blank"
+                      rel="noopener"
+                      >F5-TTS</a
+                    >
+                    — zero-shot flow-matching
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/fishaudio/fish-speech"
+                      target="_blank"
+                      rel="noopener"
+                      >FishSpeech</a
+                    >
+                    — zero-shot expressive
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/canopyai/Orpheus-TTS"
+                      target="_blank"
+                      rel="noopener"
+                      >Orpheus-TTS</a
+                    >
+                    — LLM-based TTS
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/yl4579/StyleTTS3"
+                      target="_blank"
+                      rel="noopener"
+                      >StyleTTS3</a
+                    >
+                    — style diffusion
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://github.com/Zyphra/Zonos"
+                      target="_blank"
+                      rel="noopener"
+                      >Zonos</a
+                    >
+                    — high-fidelity hybrid
+                  </li>
+                  <li>
+                    <a
+                      class="link-underline"
+                      href="https://onnxruntime.ai/"
+                      target="_blank"
+                      rel="noopener"
+                      >ONNX Runtime</a
+                    >
+                    — CPU-optimized inference
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-info mt-3 mb-0">
+          <strong>Final Recommendation Summary:</strong>
+          <ol class="mb-0 mt-2 d-flex flex-column gap-2">
+            <li>
+              <strong>Do not discard Edge-TTS yet.</strong> Ship backend
+              interface (Phase 0) first (zero risk).
+            </li>
+              <li>
+                <strong>Phase 1 (baseline only).</strong> MMS-TTS
+                (<code>facebook/mms-tts-amh</code>) — but it is
+                <strong>CC-BY-NC 4.0</strong> (no commercial use) and requires
+                <strong>uroman romanisation</strong> first. Use it to get numbers,
+                not to ship.
+              </li>
+
+            <li>
+              <strong>Keep your front-end forever.</strong>
+              <code>amharic_normalizer</code> + <code>pronunciation.json</code> +
+              prosody + segment filtering are engine-agnostic and are your
+              biggest long-term moat for Amharic.
+            </li>
+            <li>
+              <strong>Treat BERT/amharicNLP as upstream understanding.</strong>
+              They belong before synthesis (routing/NER/labeling), not inside
+              the TTS engine.
+            </li>
+            <li>
+              <strong>Only go to GPU-heavy zero-shot (Phase 3)</strong> if you
+              need per-request voice cloning at scale; for queue/announcements
+              MMS/VITS is sufficient and cheaper to operate.
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container-xxl">
+      <div
+        class="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3"
+      >
+        <div>
+          <div class="fw-semibold">Amharic TTS — Architecture &amp; Replacement Strategy</div>
+          <div class="small">
+            Generated as a detailed technical reference for
+            <code>tts-server</code> (Lancet/Amharic TTS API)
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 small">
+          <span class="tag">Last Updated: 2026-09-30</span>
+          <span class="tag">License: Boost Software License 1.0</span>
+          <span class="tag">Backend-Swappable</span>
+          <span class="tag">Self-Hostable</span>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: "dark",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true, curve: "basis" },
+      themeVariables: {
+        primaryColor: "#0f183a",
+        primaryTextColor: "#e2e8f0",
+        primaryBorderColor: "#38bdf8",
+        lineColor: "#38bdf8",
+        secondaryColor: "#0b122b",
+        tertiaryColor: "#0f172a",
+        clusterBkg: "rgba(15,24,58,0.5)",
+        nodeBorder: "#38bdf8",
+        edgeLabelBackground: "rgba(2,6,23,0.85)",
+      },
+    });
+
+    const navLinks = document.querySelectorAll(".nav-link");
+    const sections = document.querySelectorAll("main section[id]");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            navLinks.forEach((link) => {
+              link.classList.toggle(
+                "active",
+                link.getAttribute("href") === "#" + entry.target.id
+              );
+            });
+          }
+        });
+      },
+      { rootMargin: "-40% 0px -55% 0px", threshold: 0.1 }
+    );
+    sections.forEach((section) => observer.observe(section));
+  </script>
+</body>
+</html>
