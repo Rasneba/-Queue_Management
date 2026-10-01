@@ -18,6 +18,15 @@ services:
         value: cpu
       - key: STT_COMPUTE
         value: int8
+      # edge = Edge neural voices (commercial OK).
+      # mms_onnx = baked-in offline Amharic model, CC-BY-NC 4.0 NON-COMMERCIAL.
+      # auto     = offline model when present, else edge.
+      - key: TTS_ENGINE
+        value: edge
+      - key: MMS_ONNX_PATH
+        value: /models/mms-tts-amh
+      - key: MMS_THREADS
+        value: "1"
       # Paste the Neon connection string in the dashboard, not in this file.
       # sync: false makes Render prompt for the value on the first deploy.
       - key: DATABASE_URL

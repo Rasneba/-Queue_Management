@@ -169,6 +169,32 @@ graph is exported over romanized token ids rather than Ethiopic codepoints.
 Synthesis on 2 CPU threads runs slightly slower than real time
 (~1.2x RTF for a short sentence).
 
+### Deploying the offline model on Render free
+
+`Dockerfile` has two stages. Stage 1 installs torch, downloads
+`facebook/mms-tts-amh` and exports it with `scripts/export_mms_onnx.py`; stage 2
+is the runtime image and copies only the exported `model.onnx`, `vocab.json`
+and `meta.json` across. torch never reaches the final image.
+
+Measured on the offline model: **327 MB peak RSS**, 109 MB on disk. Render free
+allows 512 MB, so it fits, though STT and TTS in one instance is tight. Build
+takes longer than a single-stage image because of the torch export; the result
+is ~1.4 GB (free limit 2 GB) with no persistent disk and no cold-start
+download.
+
+Flip it on with one env var after the first deploy:
+
+```bash
+TTS_ENGINE=mms_onnx   # or "auto"
+```
+
+Then confirm what is live:
+
+```bash
+curl -s https://<service>.onrender.com/health | python -m json.tool
+# "engine": { "engine": "mms_onnx", "offline": true, "commercial_use": false }
+```
+
 See [`AMHARIC_TTS_DESIGN.html`](./AMHARIC_TTS_DESIGN.html) for the full design
 document: architecture, Edge-TTS gap analysis, and a phased plan to replace it
 with your own Amharic model (licensing constraints, data, G2P, training and
