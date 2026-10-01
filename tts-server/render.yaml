@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: neba-tts-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"
+      - key: TTS_HOST
+        value: 0.0.0.0
+      - key: STT_MODEL
+        value: small
+      - key: STT_DEVICE
+        value: cpu
+      - key: STT_COMPUTE
+        value: int8
+      # Paste the Neon connection string in the dashboard, not in this file.
+      # sync: false makes Render prompt for the value on the first deploy.
+      - key: DATABASE_URL
+        sync: false
